@@ -6,8 +6,8 @@ describe('building generator preview', () => {
     cy.get('canvas', { timeout: 15000 }).should('exist')
     cy.window({ timeout: 15000 }).its('__nexis').should('exist')
 
-    cy.contains('button', 'Generate').click()
-    cy.contains('rooms ·', { timeout: 8000 }).should('be.visible')
+    cy.contains('button', '產生建築').click()
+    cy.contains('房 ·', { timeout: 8000 }).should('be.visible')
     cy.wait(400)
     cy.screenshot('building-ui', { capture: 'viewport' })
 

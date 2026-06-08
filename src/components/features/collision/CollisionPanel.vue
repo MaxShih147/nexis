@@ -25,12 +25,12 @@ const sortedResults = computed(() =>
 
 const statusText = computed(() => {
   if (!hasCollisions.value)
-    return 'Clear'
+    return '無干涉'
   const parts = []
   if (intersectCount.value)
-    parts.push(`${intersectCount.value} hit`)
+    parts.push(`${intersectCount.value} 干涉`)
   if (nearCount.value)
-    parts.push(`${nearCount.value} near`)
+    parts.push(`${nearCount.value} 接近`)
   return parts.join(' · ')
 })
 
@@ -77,35 +77,38 @@ function fmtLoc(loc) {
 <template>
   <div class="collision-panel flex flex-col gap-3 px-2 py-3 text-sm">
     <div class="flex items-center justify-between">
-      <span class="font-medium uppercase tracking-wide text-zinc-400 text-xs">Collision</span>
+      <span class="font-medium uppercase tracking-wide text-zinc-400 text-xs">碰撞</span>
       <span
         class="text-xs font-medium"
         :class="hasCollisions ? (intersectCount ? 'text-red-400' : 'text-amber-400') : 'text-emerald-400'"
       >{{ statusText }}</span>
     </div>
 
-    <div class="flex items-center gap-2">
+    <div class="flex flex-col gap-2">
       <Button
         size="small"
-        severity="secondary"
-        class="flex-1 !text-xs"
-        label="Check Collisions"
+        fluid
+        class="!text-xs"
+        label="偵測碰撞"
         icon="icon-[lucide--scan-search]"
         @click="runCheck"
       />
       <Button
         v-if="hasCollisions"
         size="small"
-        text
+        severity="secondary"
+        outlined
+        fluid
         class="!text-xs"
-        label="Clear"
+        label="清除"
+        icon="icon-[lucide--trash-2]"
         @click="clearResults"
       />
     </div>
 
-    <!-- Safety gap ε (scenario 2) -->
+    <!-- 安全間隙 ε（情境 2） -->
     <div class="flex items-center justify-between gap-2">
-      <span class="text-xs text-zinc-400">Safety gap ε</span>
+      <span class="text-xs text-zinc-400">安全間隙 ε</span>
       <InputNumber
         :model-value="tolerance"
         :min="0"
@@ -122,7 +125,7 @@ function fmtLoc(loc) {
     </div>
 
     <div class="flex items-center justify-between">
-      <span class="text-xs text-zinc-400">Realtime (while dragging)</span>
+      <span class="text-xs text-zinc-400">即時（拖曳時）</span>
       <ToggleSwitch :model-value="realtime" @update:model-value="toggleRealtime" />
     </div>
 
@@ -143,14 +146,14 @@ function fmtLoc(loc) {
             class="shrink-0 text-[10px]"
             :class="pair.status === 'intersect' ? 'text-red-300' : 'text-amber-300'"
           >
-            {{ pair.status === 'intersect' ? `vol ${fmtNum(pair.magnitude)}` : `gap ${fmtNum(pair.gap)} cm` }}
+            {{ pair.status === 'intersect' ? `體積 ${fmtNum(pair.magnitude)}` : `間隙 ${fmtNum(pair.gap)} cm` }}
           </span>
         </div>
-        <div class="text-[10px] text-zinc-500">loc {{ fmtLoc(pair.location) }}</div>
+        <div class="text-[10px] text-zinc-500">位置 {{ fmtLoc(pair.location) }}</div>
       </div>
     </div>
     <div v-else class="text-xs text-zinc-500">
-      Run a check, or set a safety gap ε to detect near-misses.
+      執行偵測，或設定安全間隙 ε 以找出接近的物件。
     </div>
   </div>
 </template>

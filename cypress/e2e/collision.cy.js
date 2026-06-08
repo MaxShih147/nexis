@@ -38,7 +38,7 @@ describe('collision detection (single floor)', () => {
       api.addShape('Box', { width: 20, height: 20, depth: 20 })
       api.checkCollisions()
     })
-    cy.contains('1 hit', { timeout: 8000 }).should('be.visible')
+    cy.contains('1 干涉', { timeout: 8000 }).should('be.visible')
     cy.screenshot('collision-detected', { capture: 'viewport' })
   })
 
@@ -65,7 +65,7 @@ describe('collision detection (single floor)', () => {
       // Back to ε = 5 for the screenshot.
       api.setCollisionTolerance(5)
     })
-    cy.contains('1 near', { timeout: 8000 }).should('be.visible')
+    cy.contains('1 接近', { timeout: 8000 }).should('be.visible')
     cy.screenshot('collision-near-gap', { capture: 'viewport' })
   })
 })

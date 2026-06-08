@@ -15,8 +15,8 @@ import './assets/main.css'
 async function bootstrap() {
   document.documentElement.classList.add('dark')
 
-  const locale = Trans.guessDefaultLocale()
-  await Trans.switchLanguage(locale)
+  // nexis: fixed to Traditional Chinese (the locale switcher is hidden).
+  await Trans.switchLanguage('tw')
 
   const app = createApp(App)
   const pinia = createPinia()

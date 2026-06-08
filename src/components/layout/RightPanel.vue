@@ -58,7 +58,6 @@ async function handleExportClick() {
         <Avatar ref="userAvatarRef" :label="authStore.userAvatarLabel" shape="circle" class="right-panel__user-avatar" />
       </Button>
       <Button text :icon="isDark ? 'icon-[lucide--moon]' : 'icon-[lucide--sun]'" @click="toggleDarkMode" />
-      <SelectLocale />
       <Button
         :label="t('common.actions.export')" severity="secondary" :pt="{
           root: {

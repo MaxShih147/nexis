@@ -1,13 +1,12 @@
 <script setup>
 import { inject, reactive, ref } from 'vue'
 
-// nexis digital-twin: procedural building shell controls.
-// Generates random-but-reasonable walls + columns on the floor so we have a
-// "building body" to test object-vs-building interference against.
+// nexis 數位孿生：程序化建築外殼控制面板。
+// 在地板上生成隨機但合理的牆與柱，作為「建築本體」供物件干涉檢測使用。
 
 const three = inject('three')
 
-// All lengths in cm, areas in cm².
+// 長度單位為公分 (cm)，面積為平方公分 (cm²)。
 const params = reactive({
   rooms: 3,
   wallHeight: 260,
@@ -24,14 +23,14 @@ const params = reactive({
 const summary = ref(null)
 
 const fields = [
-  { key: 'rooms', label: 'Rooms (隔間)', min: 1, max: 40, step: 1 },
-  { key: 'wallHeight', label: 'Wall height 牆高 (cm)', min: 1, max: 1000, step: 10 },
-  { key: 'columnSize', label: 'Column side 柱邊長 (cm)', min: 1, max: 200, step: 5 },
-  { key: 'doorWidth', label: 'Door width 門寬 (cm)', min: 1, max: 400, step: 5 },
-  { key: 'doorHeight', label: 'Door height 門高 (cm)', min: 1, max: 1000, step: 10 },
-  { key: 'minColumnSpacing', label: 'Column spacing 柱間距 (cm)', min: 100, max: 2000, step: 50 },
-  { key: 'minRoomArea', label: 'Min area (cm²)', min: 10000, max: 5000000, step: 10000 },
-  { key: 'maxRoomArea', label: 'Max area (cm²)', min: 10000, max: 10000000, step: 10000 },
+  { key: 'rooms', label: '隔間數', step: 1, min: 1, max: 40 },
+  { key: 'wallHeight', label: '牆高 (cm)', step: 10, min: 1, max: 1000 },
+  { key: 'columnSize', label: '柱邊長 (cm)', step: 5, min: 1, max: 200 },
+  { key: 'minColumnSpacing', label: '柱間距 (cm)', step: 50, min: 100, max: 2000 },
+  { key: 'doorWidth', label: '門寬 (cm)', step: 5, min: 1, max: 400 },
+  { key: 'doorHeight', label: '門高 (cm)', step: 10, min: 1, max: 1000 },
+  { key: 'minRoomArea', label: '最小面積 (cm²)', step: 10000, min: 10000, max: 5000000 },
+  { key: 'maxRoomArea', label: '最大面積 (cm²)', step: 10000, min: 10000, max: 10000000 },
 ]
 
 function generate() {
@@ -52,17 +51,17 @@ function clearBuilding() {
 </script>
 
 <template>
-  <div class="building-panel flex flex-col gap-3 px-2 py-3 text-sm">
+  <div class="building-panel flex flex-col gap-3 px-2 py-3">
     <div class="flex items-center justify-between">
-      <span class="font-medium uppercase tracking-wide text-zinc-400 text-xs">Building</span>
+      <span class="font-medium uppercase tracking-wide text-zinc-400 text-xs">建築</span>
       <span v-if="summary" class="text-xs text-emerald-400">
-        {{ summary.rooms }} rooms · {{ summary.walls }} walls · {{ summary.columns }} cols
+        {{ summary.rooms }} 房 · {{ summary.walls }} 牆 · {{ summary.columns }} 柱
       </span>
     </div>
 
-    <div class="grid grid-cols-2 gap-x-3 gap-y-2">
-      <label v-for="f in fields" :key="f.key" class="flex flex-col gap-0.5">
-        <span class="text-[10px] text-zinc-500">{{ f.label }}</span>
+    <div class="grid grid-cols-2 gap-x-2 gap-y-2.5">
+      <label v-for="f in fields" :key="f.key" class="flex min-w-0 flex-col gap-1">
+        <span class="truncate text-[11px] text-zinc-400">{{ f.label }}</span>
         <InputNumber
           v-model="params[f.key]"
           :min="f.min"
@@ -70,37 +69,47 @@ function clearBuilding() {
           :step="f.step"
           :max-fraction-digits="0"
           size="small"
-          :input-style="{ width: '100%', fontSize: '0.75rem' }"
+          fluid
+          :pt="{ pcInputText: { root: { class: '!text-xs !py-1.5 w-full' } } }"
         />
       </label>
     </div>
 
-    <div class="flex items-center gap-2">
+    <div class="flex flex-col gap-2 pt-1">
       <Button
         size="small"
-        class="flex-1 !text-xs"
-        label="Generate"
+        fluid
+        class="!text-xs"
+        label="產生建築"
         icon="icon-[lucide--building-2]"
         @click="generate"
       />
-      <Button
-        size="small"
-        severity="secondary"
-        class="!text-xs"
-        label="Randomize"
-        icon="icon-[lucide--dices]"
-        @click="randomize"
-      />
-      <Button
-        size="small"
-        text
-        class="!text-xs"
-        label="Clear"
-        @click="clearBuilding"
-      />
+      <div class="grid grid-cols-2 gap-2">
+        <Button
+          size="small"
+          severity="secondary"
+          outlined
+          fluid
+          class="!text-xs"
+          label="隨機"
+          icon="icon-[lucide--dices]"
+          @click="randomize"
+        />
+        <Button
+          size="small"
+          severity="secondary"
+          outlined
+          fluid
+          class="!text-xs"
+          label="清除"
+          icon="icon-[lucide--trash-2]"
+          @click="clearBuilding"
+        />
+      </div>
     </div>
+
     <div class="text-[10px] text-zinc-500">
-      Seed {{ params.seed }} — same seed + params reproduces the same layout.
+      種子 {{ params.seed }}（相同種子與參數會產生相同佈局）
     </div>
   </div>
 </template>

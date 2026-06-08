@@ -694,6 +694,34 @@ export function createSceneCoordinator(container) {
     return mesh
   }
 
+  /**
+   * Scatter `count` random boxes across the floor — simulates "system A"
+   * placing objects, and a quick way to stress collision detection. Random
+   * size + position; overlaps are intentional so interference shows up.
+   * @param {number} count
+   */
+  function scatterRandomObjects(count = 20) {
+    const w = plane.size?.x || 300
+    const d = plane.size?.y || 300
+    const halfW = w / 2
+    const halfD = d / 2
+
+    undoManager.beginTransaction('Scatter objects')
+    for (let i = 0; i < count; i++) {
+      const size = 50 + Math.random() * 150 // 50..200 cm
+      const mesh = meshManager.addShape('Box', { width: size, height: size, depth: size })
+      if (!mesh)
+        continue
+      const x = (Math.random() * 2 - 1) * Math.max(0, halfW - size / 2)
+      const y = (Math.random() * 2 - 1) * Math.max(0, halfD - size / 2)
+      meshManager.updatePosition({ x, y, z: mesh.position.z }, mesh)
+      undoManager.push(createAddModelCommand(mesh, meshManager, render))
+    }
+    undoManager.commitTransaction()
+    collisionManager.requestRealtimeCheck(null)
+    render()
+  }
+
   async function undoReplaceModelGeometryWithLabel(model, stlBlob, label = 'common.commandLabels.replaceGeometry') {
     const oldSnapshot = await captureGeometrySnapshot(model, snapshotService)
     await meshManager.replaceModelGeometry(model, stlBlob)
@@ -837,6 +865,7 @@ export function createSceneCoordinator(container) {
     expandModel: undoExpandModel,
     setSceneColor,
     addShape: undoAddShape,
+    scatterRandomObjects,
     // Collision detection (Problem 1)
     checkCollisions: collisionManager.checkAll.bind(collisionManager),
     checkCollisionsFor: collisionManager.checkFor.bind(collisionManager),

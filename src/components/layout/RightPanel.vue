@@ -54,6 +54,8 @@ async function handleExportClick() {
       <BuildingPanel />
       <VDivider />
       <SafetyGapPanel />
+      <VDivider />
+      <ScatterPanel />
     </div>
     <!-- end of panel body -->
   </aside>

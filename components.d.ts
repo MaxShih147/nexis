@@ -51,6 +51,7 @@ declare module 'vue' {
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
     SafetyGapPanel: typeof import('./src/components/features/collision/SafetyGapPanel.vue')['default']
+    ScatterPanel: typeof import('./src/components/features/objects/ScatterPanel.vue')['default']
     Select: typeof import('primevue/select')['default']
     SelectButton: typeof import('primevue/selectbutton')['default']
     SelectDentalMode: typeof import('./src/components/features/printer_settings/SelectDentalMode.vue')['default']
@@ -81,6 +82,7 @@ declare module 'vue' {
     UploadBtn: typeof import('./src/components/features/file_loading/UploadBtn.vue')['default']
     UserSidebarShell: typeof import('./src/components/layout/UserSidebarShell.vue')['default']
     VDivider: typeof import('./src/components/UI/VDivider.vue')['default']
+    VirtualScroller: typeof import('primevue/virtualscroller')['default']
   }
   export interface ComponentCustomProperties {
     Ripple: typeof import('primevue/ripple')['default']

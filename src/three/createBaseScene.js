@@ -5,9 +5,11 @@ import * as THREE from 'three'
 import { watch } from 'vue'
 import { AxisHelper } from './managers/AxisHelper.js'
 
+// nexis: default factory floor — a large square platform drawn as a 10×10 grid.
+const GRID_DIVISIONS = 10
 const FALLBACK_BED_SIZE = {
-  width: 134,
-  height: 75,
+  width: 300,
+  height: 300,
 }
 
 /**
@@ -200,8 +202,7 @@ export function resizePlane(plane, width, height) {
 }
 
 function addPlaneDecorations(plane, width, height) {
-  plane.add(createGrid(width, height, 10))
-  plane.add(createBottomVMarker(width, height))
+  plane.add(createGrid(width, height, GRID_DIVISIONS))
 }
 
 function clearPlaneDecorations(plane) {
@@ -238,73 +239,20 @@ function resolveBedSize(sizeArray) {
 }
 
 /**
- * Creates a V marker below the platform edge.
- * The V opening faces the platform and keeps a 0.5 cm gap.
- * @returns {THREE.Group} The created marker
- */
-function createBottomVMarker(_width, height) {
-  const gapFromPlatform = 5 // 0.5 cm = 5 mm
-  const halfVWidth = 15
-  const vDepth = 6
-  const strokeWidth = 1
-  const strokeThickness = 0.1
-  const innerOverlap = 0.2
-
-  const material = new THREE.MeshBasicMaterial({
-    color: SCENE_COLORS.ACCENT,
-    side: THREE.DoubleSide,
-  })
-
-  const segmentLength = Math.hypot(halfVWidth, vDepth)
-  const extendedLength = segmentLength + innerOverlap
-  const leftStroke = new THREE.Mesh(
-    new THREE.BoxGeometry(extendedLength, strokeWidth, strokeThickness),
-    material,
-  )
-  const rightStroke = new THREE.Mesh(
-    new THREE.BoxGeometry(extendedLength, strokeWidth, strokeThickness),
-    material,
-  )
-
-  const segmentAngle = Math.atan2(vDepth, halfVWidth)
-  const ux = halfVWidth / segmentLength
-  const uy = -vDepth / segmentLength
-
-  // Keep outer endpoints fixed, extend only toward the inner joint to ensure overlap.
-  leftStroke.position.set(
-    -halfVWidth / 2 + ux * (innerOverlap / 2),
-    -vDepth / 2 + uy * (innerOverlap / 2),
-    0,
-  )
-  leftStroke.rotation.z = -segmentAngle
-  rightStroke.position.set(
-    halfVWidth / 2 - ux * (innerOverlap / 2),
-    -vDepth / 2 - uy * (innerOverlap / 2),
-    0,
-  )
-  rightStroke.rotation.z = segmentAngle
-
-  const marker = new THREE.Group()
-  marker.add(leftStroke, rightStroke)
-  marker.position.set(0, -(height / 2) - gapFromPlatform, 0)
-
-  return marker
-}
-
-/**
- * Creates a grid for visualization
+ * Creates the floor grid: an accent border rectangle plus full grid lines that
+ * divide the platform into `divisions × divisions` cells (graph-paper style).
  * @param {number} width - The width of the grid
  * @param {number} length - The length of the grid
- * @param {number} cellSize - The size of each grid cell
+ * @param {number} divisions - Number of cells along each axis
  * @returns {THREE.Group} The created grid
  */
-function createGrid(width, length, cellSize) {
+function createGrid(width, length, divisions) {
   const group = new THREE.Group()
 
   const halfWidth = width / 2
   const halfLength = length / 2
 
-  const { borderVertices, crossVertices } = createCrossVertices(halfWidth, halfLength, cellSize)
+  const { borderVertices, lineVertices } = createGridVertices(halfWidth, halfLength, divisions)
 
   const borderGeometry = new THREE.BufferGeometry()
   borderGeometry.setAttribute('position', new THREE.Float32BufferAttribute(borderVertices, 3))
@@ -312,61 +260,41 @@ function createGrid(width, length, cellSize) {
   const border = new THREE.LineSegments(borderGeometry, borderMaterial)
   border.name = 'grid-border'
 
-  const crossGeometry = new THREE.BufferGeometry()
-  crossGeometry.setAttribute('position', new THREE.Float32BufferAttribute(crossVertices, 3))
-  const crossMaterial = new THREE.LineBasicMaterial({ color: SCENE_COLORS.GRID })
-  const cross = new THREE.LineSegments(crossGeometry, crossMaterial)
-  cross.name = 'grid-cross'
+  const lineGeometry = new THREE.BufferGeometry()
+  lineGeometry.setAttribute('position', new THREE.Float32BufferAttribute(lineVertices, 3))
+  const lineMaterial = new THREE.LineBasicMaterial({ color: SCENE_COLORS.GRID, transparent: true, opacity: 0.5 })
+  const lines = new THREE.LineSegments(lineGeometry, lineMaterial)
+  lines.name = 'grid-lines'
 
-  group.add(border, cross)
+  group.add(border, lines)
   return group
 }
 
-function createCrossVertices(halfWidth, halfLength, cellSize) {
+function createGridVertices(halfWidth, halfLength, divisions) {
   const borderVertices = []
-  const crossVertices = []
-  const armLen = 1.5
+  const lineVertices = []
 
   // Border rectangle
   borderVertices.push(
-    -halfWidth,
-    -halfLength,
-    0,
-    halfWidth,
-    -halfLength,
-    0,
-    -halfWidth,
-    halfLength,
-    0,
-    halfWidth,
-    halfLength,
-    0,
-    -halfWidth,
-    -halfLength,
-    0,
-    -halfWidth,
-    halfLength,
-    0,
-    halfWidth,
-    -halfLength,
-    0,
-    halfWidth,
-    halfLength,
-    0,
+    -halfWidth, -halfLength, 0, halfWidth, -halfLength, 0,
+    -halfWidth, halfLength, 0, halfWidth, halfLength, 0,
+    -halfWidth, -halfLength, 0, -halfWidth, halfLength, 0,
+    halfWidth, -halfLength, 0, halfWidth, halfLength, 0,
   )
 
-  // Crosses at every (kx * cellSize, ky * cellSize) intersection
-  const maxKX = Math.floor(halfWidth / cellSize)
-  const maxKY = Math.floor(halfLength / cellSize)
+  // Interior grid lines splitting the platform into divisions × divisions cells.
+  // (Outer edges are drawn by the accent border, so only i = 1..divisions-1.)
+  const cellX = (halfWidth * 2) / divisions
+  const cellY = (halfLength * 2) / divisions
 
-  for (let kx = -maxKX; kx <= maxKX; kx++) {
-    for (let ky = -maxKY; ky <= maxKY; ky++) {
-      const x = kx * cellSize
-      const y = ky * cellSize
-      crossVertices.push(x - armLen, y, 0, x + armLen, y, 0) // horizontal arm
-      crossVertices.push(x, y - armLen, 0, x, y + armLen, 0) // vertical arm
-    }
+  for (let i = 1; i < divisions; i++) {
+    const x = -halfWidth + i * cellX
+    lineVertices.push(x, -halfLength, 0, x, halfLength, 0) // vertical line
+  }
+  for (let j = 1; j < divisions; j++) {
+    const y = -halfLength + j * cellY
+    lineVertices.push(-halfWidth, y, 0, halfWidth, y, 0) // horizontal line
   }
 
-  return { borderVertices, crossVertices }
+  return { borderVertices, lineVertices }
 }

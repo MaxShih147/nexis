@@ -1,0 +1,825 @@
+#include <cstdint>
+#include <cmath>
+#include <vector>
+#include <unordered_map>
+#include <queue>
+#include <limits>
+#include <cstdio>
+#include <algorithm>
+
+#include "dao_api.h"
+#include "dao_math.h"
+
+using std::uint32_t;
+using std::int32_t;
+using std::size_t;
+using namespace dao_m;
+
+// ======================== 小工具 ========================
+
+static float clampf(float x, float lo, float hi)
+{
+    return x < lo ? lo : (x > hi ? hi : x);
+}
+
+static void buildOrthonormalBasis(const Vec3& nIn, Vec3& ex, Vec3& ey)
+{
+    Vec3 n = normalize(nIn);
+    float len = norm(n);
+    if (len < 1e-6f)
+    {
+        n = Vec3{ 0.0f, 0.0f, 1.0f };
+    }
+
+    Vec3 t = (std::fabs(n.z) < 0.9f) ? Vec3{ 0.0f, 0.0f, 1.0f }
+                                     : Vec3{ 0.0f, 1.0f, 0.0f };
+
+    ex = normalize(cross(t, n));
+    ey = cross(n, ex);
+}
+
+static inline Vec3 load_vtx(const float* v, uint32_t idx) {
+    const float* p = v + idx * 3u;
+    return v3(p[0], p[1], p[2]);
+}
+
+// 將輸入法向轉成「旋轉後對齊 -Z」的 XYZ 歐拉角（弧度）
+static inline void normal_to_euler_XYZ_align_to_minusZ(const Vec3& n_in, float out_rad3[3]) {
+    using std::fabs; using std::atan2; using std::asin; using std::cos;
+    using std::sqrt; using std::fmin; using std::fmax; using std::acos;
+
+    const float nx0 = n_in.x, ny0 = n_in.y, nz0 = n_in.z;
+    const float L2 = nx0 * nx0 + ny0 * ny0 + nz0 * nz0;
+    if (L2 <= 0.0f) { out_rad3[0] = out_rad3[1] = out_rad3[2] = 0.0f; return; }
+    const float L = sqrt(L2);
+    const float nx = nx0 / L, ny = ny0 / L, nz = nz0 / L;
+
+    if (nz <= -0.999999f) {
+        out_rad3[0] = 0.0f; out_rad3[1] = 0.0f; out_rad3[2] = 0.0f;
+        return;
+    }
+    if (nz >= 0.999999f) {
+        const float pi = (float)acos(-1.0f);
+        out_rad3[0] = 0.0f; out_rad3[1] = pi; out_rad3[2] = 0.0f;
+        return;
+    }
+
+    float zx = -nx, zy = -ny, zz = -nz;
+
+    float refx = 1.0f, refy = 0.0f, refz = 0.0f;
+    if (fabs(nx) > 0.9f && fabs(ny) < 0.5f) { refx = 0.0f; refy = 1.0f; refz = 0.0f; }
+
+    float ndotref = nx * refx + ny * refy + nz * refz;
+    float xx = refx - nx * ndotref;
+    float xy = refy - ny * ndotref;
+    float xz = refz - nz * ndotref;
+    float xlen2 = xx * xx + xy * xy + xz * xz;
+    if (xlen2 < 1e-12f) {
+        refx = (refx == 1.0f) ? 0.0f : 1.0f;
+        refy = (refy == 1.0f) ? 0.0f : 0.0f;
+        refz = 0.0f;
+        ndotref = nx * refx + ny * refy + nz * refz;
+        xx = refx - nx * ndotref;
+        xy = refy - ny * ndotref;
+        xz = refz - nz * ndotref;
+        xlen2 = xx * xx + xy * xy + xz * xz;
+    }
+    float invx = 1.0f / sqrt(xlen2);
+    xx *= invx; xy *= invx; xz *= invx;
+
+    float yx = zy * xz - zz * xy;
+    float yy = zz * xx - zx * xz;
+    float yz = zx * xy - zy * xx;
+    float ylen2 = yx * yx + yy * yy + yz * yz;
+    float invy = 1.0f / sqrt(fmax(1e-30f, ylen2));
+    yx *= invy; yy *= invy; yz *= invy;
+
+    xx = yy * zz - yz * zy;
+    xy = yz * zx - yx * zz;
+    xz = yx * zy - yy * zx;
+    xlen2 = xx * xx + xy * xy + xz * xz;
+    invx = 1.0f / sqrt(fmax(1e-30f, xlen2));
+    xx *= invx; xy *= invx; xz *= invx;
+
+    const float R00 = xx, R01 = xy, R02 = xz;
+    const float R10 = yx, R11 = yy, R12 = yz;
+    const float R20 = zx, R21 = zy, R22 = zz;
+
+    float ry = -asin(fmax(-1.0f, fmin(1.0f, R20)));
+    float cy = cos(ry);
+
+    float rx, rz;
+    if (fabs(cy) > 1e-6f) {
+        rx = atan2(R21, R22);
+        rz = atan2(R10, R00);
+    }
+    else {
+        rx = 0.0f;
+        rz = atan2(-R01, R11);
+    }
+
+    out_rad3[0] = rx;
+    out_rad3[1] = ry;
+    out_rad3[2] = rz;
+}
+
+// ======================== 幾何結構 ========================
+
+struct FaceInfo {
+    uint32_t i0, i1, i2;
+    Vec3     n;
+    Vec3     c;
+    int      patchId;
+};
+
+struct PatchInfo {
+    int              id;
+    std::vector<int> faces;       // face indices
+    Vec3             avgNormal;   // 面積加權平均法向
+    float            area;        // 總面積
+    float            maxAngleDeg; // 面內法向與 avgNormal 最大夾角
+    int              boundaryEdges;
+    int              verticalWalls;
+    Vec3             center;      // 面積加權中心
+};
+
+struct EdgeKey {
+    uint32_t a, b;
+};
+
+struct EdgeKeyHash {
+    size_t operator()(const EdgeKey& e) const noexcept {
+        return ((size_t)e.a * 73856093u) ^ ((size_t)e.b * 19349663u);
+    }
+};
+
+struct EdgeKeyEq {
+    bool operator()(const EdgeKey& x, const EdgeKey& y) const noexcept {
+        return x.a == y.a && x.b == y.b;
+    }
+};
+
+struct EdgeFaces {
+    int f0 = -1;
+    int f1 = -1;
+};
+
+struct GuideSearchResult {
+    bool found = false;
+    Vec3 dir = v3(0, 0, 1);  // 導孔方向（未取負）
+};
+
+// ======================== 階段 2：導孔端面判定 ========================
+//
+// 依照你最新的描述：
+// 1. 直立洞壁：與 patch 法向量成 90° ±3°
+// 2. 從這些直立洞壁與端面之間的邊組成「連接邊群」
+// 3. 投影到 patch 平面後做 bounding box，尺寸在 6~15mm 且近似方形
+// 4. 在邊圖上追邊鏈，累積轉角 >= 240° 就視為導孔端面
+//
+static bool isDrillPatchByEdges(
+    const float* v,
+    const std::unordered_map<EdgeKey, EdgeFaces, EdgeKeyHash, EdgeKeyEq>& edgeMap,
+    const std::vector<FaceInfo>& faces,
+    const PatchInfo& P)
+{
+    if (P.faces.size() < 5 || P.area <= 0.0f)
+        return false;
+
+    // patch 法向量
+    Vec3 nPatch = normalize(P.avgNormal);
+    if (norm(nPatch) < 0.5f)
+        return false;
+
+    // 建立局部 2D 座標系，把 patch「放平」
+    Vec3 ex, ey;
+    buildOrthonormalBasis(nPatch, ex, ey);
+
+    auto projectToPlane = [&](uint32_t vid) -> Vec3
+    {
+        Vec3 p = load_vtx(v, vid);
+        Vec3 q{ p.x - P.center.x, p.y - P.center.y, p.z - P.center.z };
+        float u = dot(q, ex);
+        float vv = dot(q, ey);
+        return v3(u, vv, 0.0f);
+    };
+
+    // 收集「連接導孔端面」的邊（patch 與直立洞壁三角面之間的邊）
+    // 直立洞壁條件：與 patch 法向量成 90° ± 3°
+    const float cosPerp = std::cos(87.0f * 3.14159265f / 180.0f); // |dot| <= cos(87°)
+    std::vector<std::pair<uint32_t, uint32_t>> connEdges;
+    connEdges.reserve(64);
+
+    // 也同時用這些邊的端點做 bounding box
+    float umin = 1e30f, umax = -1e30f;
+    float vmin = 1e30f, vmax = -1e30f;
+
+    for (int fi : P.faces)
+    {
+        const FaceInfo& F = faces[(size_t)fi];
+        uint32_t vs[3] = { F.i0, F.i1, F.i2 };
+
+        for (int e = 0; e < 3; ++e)
+        {
+            uint32_t a = vs[e];
+            uint32_t b = vs[(e + 1) % 3];
+
+            EdgeKey key;
+            if (a < b) { key.a = a; key.b = b; }
+            else       { key.a = b; key.b = a; }
+
+            auto it = edgeMap.find(key);
+            if (it == edgeMap.end())
+                continue;
+
+            const EdgeFaces& ef = it->second;
+            int other = -1;
+            if (ef.f0 == fi)      other = ef.f1;
+            else if (ef.f1 == fi) other = ef.f0;
+            if (other < 0)
+                continue;
+
+            // 另一側是同一個 patch，就不是端面↔洞壁的連接
+            if (faces[(size_t)other].patchId == P.id)
+                continue;
+
+            // 檢查另一側是否為「直立洞壁」
+            Vec3 nWall = faces[(size_t)other].n;
+            float lenW = norm(nWall);
+            if (lenW < 0.5f)
+                continue;
+
+            float invW = 1.0f / lenW;
+            nWall = v3(nWall.x * invW, nWall.y * invW, nWall.z * invW);
+            float d = std::fabs(dot(nWall, nPatch)); // cos(angle)
+            if (d > cosPerp)
+                continue; // 不是 90°±3° 的直立洞壁
+
+            // a-b 是導孔端面與直立洞壁之間的「連接邊」
+            connEdges.emplace_back(a, b);
+
+            Vec3 uvA = projectToPlane(a);
+            Vec3 uvB = projectToPlane(b);
+
+            umin = std::min(umin, std::min(uvA.x, uvB.x));
+            umax = std::max(umax, std::max(uvA.x, uvB.x));
+            vmin = std::min(vmin, std::min(uvA.y, uvB.y));
+            vmax = std::max(vmax, std::max(uvA.y, uvB.y));
+        }
+    }
+
+    if (connEdges.size() < 4)
+        return false; // 邊太少，不像一圈洞壁
+
+    // 用連接邊群的 bounding box 做尺寸篩選（6mm ~ 15mm 且接近方形）
+    const float minDiameter = 6.0f;
+    const float maxDiameter = 15.0f;
+
+    float dx = umax - umin;
+    float dy = vmax - vmin;
+    if (dx <= 0.0f || dy <= 0.0f)
+        return false;
+
+    float minD = std::min(dx, dy);
+    float maxD = std::max(dx, dy);
+    if (minD < minDiameter || maxD > maxDiameter)
+        return false;
+
+    // 比例不要太長條，避免長方形切口
+    float ratio = maxD / std::max(minD, 1e-3f);
+    if (ratio > 1.8f)
+        return false;
+
+    // 走訪每一個「連通邊群」，用邊與邊之間的夾角累積角度
+    // 規則：存在任一連通邊群，其累積轉角 >= 240° 就視為導孔端面
+    const float angleThreshold = 240.0f * 3.14159265f / 180.0f;
+
+    std::vector<bool> edgeUsed(connEdges.size(), false);
+
+    for (size_t startEdge = 0; startEdge < connEdges.size(); ++startEdge)
+    {
+        if (edgeUsed[startEdge])
+            continue;
+
+        // 新的一條「邊鏈」
+        uint32_t v0 = connEdges[startEdge].first;
+        uint32_t v1 = connEdges[startEdge].second;
+
+        std::vector<uint32_t> seq;
+        seq.reserve(connEdges.size() + 1);
+        seq.push_back(v0);
+        seq.push_back(v1);
+        edgeUsed[startEdge] = true;
+
+        uint32_t cur = v1;
+
+        // 依序接下一條還沒用過、且接在目前端點的邊
+        for (size_t iter = 0; iter < connEdges.size(); ++iter)
+        {
+            uint32_t next = (uint32_t)(-1);
+            size_t nextIdx = (size_t)(-1);
+
+            for (size_t ei = 0; ei < connEdges.size(); ++ei)
+            {
+                if (edgeUsed[ei])
+                    continue;
+
+                const auto& e = connEdges[ei];
+                if (e.first == cur)
+                {
+                    next = e.second;
+                    nextIdx = ei;
+                    break;
+                }
+                if (e.second == cur)
+                {
+                    next = e.first;
+                    nextIdx = ei;
+                    break;
+                }
+            }
+
+            if (nextIdx == (size_t)(-1))
+                break; // 走到開放端
+
+            edgeUsed[nextIdx] = true;
+            seq.push_back(next);
+            cur = next;
+
+            if (cur == v0)
+                break; // 回到起點，形成環
+        }
+
+        if (seq.size() < 3)
+            continue;
+
+        // 計算此邊鏈的累積轉角（用 2D 投影後的夾角絕對值加總）
+        float accum = 0.0f;
+        for (size_t i = 0; i + 2 < seq.size(); ++i)
+        {
+            Vec3 p0 = projectToPlane(seq[i + 0]);
+            Vec3 p1 = projectToPlane(seq[i + 1]);
+            Vec3 p2 = projectToPlane(seq[i + 2]);
+
+            Vec3 t0 = v3(p1.x - p0.x, p1.y - p0.y, 0.0f);
+            Vec3 t1 = v3(p2.x - p1.x, p2.y - p1.y, 0.0f);
+
+            float len0 = norm(t0);
+            float len1 = norm(t1);
+            if (len0 < 1e-4f || len1 < 1e-4f)
+                continue;
+
+            float inv0 = 1.0f / len0;
+            float inv1 = 1.0f / len1;
+            t0 = v3(t0.x * inv0, t0.y * inv0, 0.0f);
+            t1 = v3(t1.x * inv1, t1.y * inv1, 0.0f);
+
+            float d = clampf(dot(t0, t1), -1.0f, 1.0f);
+            float ang = std::acos(d); // >= 0
+            accum += ang;
+        }
+
+        if (accum >= angleThreshold)
+        {
+            // 這個 patch 有一組連通的洞壁邊群，轉角 >= 240°，視為導孔端面
+            return true;
+        }
+    }
+
+    return false;
+}
+
+// ======================== 主搜尋流程 ========================
+
+static GuideSearchResult find_guide_direction(
+    const float* v,
+    int              nv,
+    const uint32_t* tri,
+    int              ntri
+) {
+    GuideSearchResult res;
+    if (!v || !tri || nv <= 0 || ntri <= 0) {
+        std::printf("[surg] invalid input\n");
+        return res;
+    }
+
+    const int nFaces = ntri;
+
+    // --- 模型尺度估計（目前沒用，但保留） ---
+    Vec3 bbmin, bbmax;
+    aabb_min_max(v, nv, bbmin, bbmax);
+    float dx = bbmax.x - bbmin.x;
+    float dy = bbmax.y - bbmin.y;
+    float dz = bbmax.z - bbmin.z;
+    float diag = norm(v3(dx, dy, dz));
+    if (diag <= 0.0f) diag = 1.0f;
+    (void)diag;
+
+    // --- Step 1: 頂點量化合併 ---
+    struct VKey { int ix, iy, iz; };
+    struct VKeyHash {
+        size_t operator()(const VKey& k) const noexcept {
+            return ((size_t)k.ix * 73856093u)
+                 ^ ((size_t)k.iy * 19349663u)
+                 ^ ((size_t)k.iz * 83492791u);
+        }
+    };
+    struct VKeyEq {
+        bool operator()(const VKey& a, const VKey& b) const noexcept {
+            return a.ix == b.ix && a.iy == b.iy && a.iz == b.iz;
+        }
+    };
+
+    const float eps = 1e-4f;
+    const float invEps = 1.0f / eps;
+
+    std::unordered_map<VKey, uint32_t, VKeyHash, VKeyEq> vmap;
+    vmap.reserve((size_t)nv * 2u);
+    std::vector<uint32_t> repOfVertex((size_t)nv);
+
+    for (int i = 0; i < nv; ++i) {
+        Vec3 p = load_vtx(v, (uint32_t)i);
+        int ix = (int)std::floor(p.x * invEps + 0.5f);
+        int iy = (int)std::floor(p.y * invEps + 0.5f);
+        int iz = (int)std::floor(p.z * invEps + 0.5f);
+        VKey key{ ix, iy, iz };
+        auto it = vmap.find(key);
+        if (it == vmap.end()) {
+            vmap.emplace(key, (uint32_t)i);
+            repOfVertex[(size_t)i] = (uint32_t)i;
+        }
+        else {
+            repOfVertex[(size_t)i] = it->second;
+        }
+    }
+
+    std::vector<uint32_t> triMerged((size_t)ntri * 3u);
+    for (int t = 0; t < ntri; ++t) {
+        uint32_t i0 = tri[3 * t + 0];
+        uint32_t i1 = tri[3 * t + 1];
+        uint32_t i2 = tri[3 * t + 2];
+        triMerged[3 * t + 0] = repOfVertex[i0];
+        triMerged[3 * t + 1] = repOfVertex[i1];
+        triMerged[3 * t + 2] = repOfVertex[i2];
+    }
+
+    // --- Step 2: 建 FaceInfo ---
+    std::vector<FaceInfo> faces;
+    faces.reserve((size_t)nFaces);
+
+    for (int t = 0; t < nFaces; ++t) {
+        uint32_t i0 = triMerged[3 * t + 0];
+        uint32_t i1 = triMerged[3 * t + 1];
+        uint32_t i2 = triMerged[3 * t + 2];
+
+        Vec3 p0 = load_vtx(v, i0);
+        Vec3 p1 = load_vtx(v, i1);
+        Vec3 p2 = load_vtx(v, i2);
+
+        Vec3 e1 = v3(p1.x - p0.x, p1.y - p0.y, p1.z - p0.z);
+        Vec3 e2 = v3(p2.x - p0.x, p2.y - p0.y, p2.z - p0.z);
+        Vec3 c = cross(e1, e2);
+        float L = norm(c);
+        Vec3 n = (L > 0.0f) ? v3(c.x / L, c.y / L, c.z / L) : v3(0, 0, 0);
+
+        Vec3 centroid = v3(
+            (p0.x + p1.x + p2.x) / 3.0f,
+            (p0.y + p1.y + p2.y) / 3.0f,
+            (p0.z + p1.z + p2.z) / 3.0f
+        );
+
+        FaceInfo F;
+        F.i0 = i0; F.i1 = i1; F.i2 = i2;
+        F.n = n;
+        F.c = centroid;
+        F.patchId = -1;
+        faces.push_back(F);
+    }
+
+    if (faces.empty()) {
+        std::printf("[surg] no faces\n");
+        return res;
+    }
+
+    // --- Step 3: edge map + adjacency for region growing ---
+    std::unordered_map<EdgeKey, EdgeFaces, EdgeKeyHash, EdgeKeyEq> edgeMap;
+    edgeMap.reserve((size_t)nFaces * 3u);
+    std::vector<std::vector<int>> adjFaces((size_t)nFaces);
+
+    auto addEdge = [&](uint32_t i0, uint32_t i1, int fIdx) {
+        EdgeKey key;
+        if (i0 < i1) { key.a = i0; key.b = i1; }
+        else         { key.a = i1; key.b = i0; }
+        auto it = edgeMap.find(key);
+        if (it == edgeMap.end()) {
+            EdgeFaces ef;
+            ef.f0 = fIdx;
+            edgeMap.emplace(key, ef);
+        }
+        else {
+            if (it->second.f1 == -1) {
+                it->second.f1 = fIdx;
+                int other = it->second.f0;
+                if (other >= 0) {
+                    adjFaces[(size_t)fIdx].push_back(other);
+                    adjFaces[(size_t)other].push_back(fIdx);
+                }
+            }
+        }
+    };
+
+    for (int f = 0; f < nFaces; ++f) {
+        const FaceInfo& F = faces[(size_t)f];
+        addEdge(F.i0, F.i1, f);
+        addEdge(F.i1, F.i2, f);
+        addEdge(F.i2, F.i0, f);
+    }
+
+    // --- Step 4: 以 2° region growing 形成平坦 patch ---
+    const float PI = (float)std::acos(-1.0);
+    const float cosGrow = std::cos(2.0f * PI / 180.0f);
+
+    std::vector<PatchInfo> patches;
+    patches.reserve(1024);
+    int nextPatchId = 0;
+
+    for (int f0 = 0; f0 < nFaces; ++f0) {
+        if (faces[(size_t)f0].patchId != -1) continue;
+        if (norm(faces[(size_t)f0].n) < 0.5f) {
+            faces[(size_t)f0].patchId = -2;
+            continue;
+        }
+
+        int pid = nextPatchId++;
+        PatchInfo P;
+        P.id = pid;
+        P.area = 0.0f;
+        P.avgNormal = v3(0, 0, 0);
+        P.maxAngleDeg = 0.0f;
+        P.boundaryEdges = 0;
+        P.verticalWalls = 0;
+        P.center = v3(0, 0, 0);
+
+        Vec3 nSeed = faces[(size_t)f0].n;
+
+        std::queue<int> Q;
+        Q.push(f0);
+        faces[(size_t)f0].patchId = pid;
+
+        while (!Q.empty()) {
+            int fIdx = Q.front(); Q.pop();
+            P.faces.push_back(fIdx);
+
+            for (int fn : adjFaces[(size_t)fIdx]) {
+                if (faces[(size_t)fn].patchId != -1) continue;
+                Vec3 n = faces[(size_t)fn].n;
+                if (norm(n) < 0.5f) {
+                    faces[(size_t)fn].patchId = -2;
+                    continue;
+                }
+                if (dot(n, nSeed) >= cosGrow) {
+                    faces[(size_t)fn].patchId = pid;
+                    Q.push(fn);
+                }
+            }
+        }
+
+        patches.push_back(P);
+    }
+
+    if (patches.empty()) {
+        std::printf("[surg] no patches, fallback +Z\n");
+        res.found = true;
+        res.dir = v3(0, 0, 1);
+        return res;
+    }
+
+    // --- Step 5: per-patch avgNormal / area / maxAngleDeg / center ---
+    for (PatchInfo& P : patches) {
+        Vec3 sumN = v3(0, 0, 0);
+        float areaSum = 0.0f;
+        Vec3 sumC = v3(0, 0, 0);
+
+        for (int fi : P.faces) {
+            FaceInfo& F = faces[(size_t)fi];
+            Vec3 p0 = load_vtx(v, F.i0);
+            Vec3 p1 = load_vtx(v, F.i1);
+            Vec3 p2 = load_vtx(v, F.i2);
+            Vec3 e1 = v3(p1.x - p0.x, p1.y - p0.y, p1.z - p0.z);
+            Vec3 e2 = v3(p2.x - p0.x, p2.y - p0.y, p2.z - p0.z);
+            float A = 0.5f * norm(cross(e1, e2));
+
+            areaSum += A;
+            sumN = v3(sumN.x + F.n.x * A,
+                      sumN.y + F.n.y * A,
+                      sumN.z + F.n.z * A);
+
+            sumC = v3(sumC.x + F.c.x * A,
+                      sumC.y + F.c.y * A,
+                      sumC.z + F.c.z * A);
+        }
+
+        P.area = areaSum;
+        P.avgNormal = normalize(sumN);
+        if (areaSum > 0.0f) {
+            P.center = v3(sumC.x / areaSum,
+                          sumC.y / areaSum,
+                          sumC.z / areaSum);
+        }
+        else {
+            P.center = v3(0, 0, 0);
+        }
+
+        float maxAng = 0.0f;
+        for (int fi : P.faces) {
+            Vec3 n = faces[(size_t)fi].n;
+            float c = dot(n, P.avgNormal);
+            if (c > 1.0f) c = 1.0f;
+            if (c < -1.0f) c = -1.0f;
+            float ang = std::acos(c) * 180.0f / PI;
+            if (ang > maxAng) maxAng = ang;
+        }
+        P.maxAngleDeg = maxAng;
+    }
+
+    // ---------- Step 6: 統計 boundaryEdges / verticalWalls（debug 用） ----------
+    auto forEachFaceEdge = [&](int fIdx, auto&& func) {
+        const FaceInfo& F = faces[(size_t)fIdx];
+        uint32_t vs[3] = { F.i0, F.i1, F.i2 };
+        for (int e = 0; e < 3; ++e) {
+            uint32_t a = vs[e];
+            uint32_t b = vs[(e + 1) % 3];
+            EdgeKey key;
+            if (a < b) { key.a = a; key.b = b; }
+            else       { key.a = b; key.b = a; }
+            func(key, fIdx);
+        }
+    };
+
+    // 這裡保留舊的直立牆統計（10°），純 debug，不參與階段 2 判斷
+    const float cosVertical = std::cos(80.0f * 3.14159265f / 180.0f);
+
+    int dbg_considered = 0;
+    int dbg_hasBoundary = 0;
+
+    for (PatchInfo& P : patches) {
+        int boundary = 0;
+        int vwalls = 0;
+
+        Vec3 nPatch = P.avgNormal;
+        if (norm(nPatch) < 0.5f) {
+            continue;
+        }
+
+        dbg_considered++;
+
+        for (int fi : P.faces) {
+            forEachFaceEdge(fi, [&](const EdgeKey& key, int selfFace) {
+                auto it = edgeMap.find(key);
+                if (it == edgeMap.end()) return;
+                const EdgeFaces& ef = it->second;
+
+                int other = -1;
+                if (ef.f0 == selfFace)      other = ef.f1;
+                else if (ef.f1 == selfFace) other = ef.f0;
+
+                // 另一側不是同一個 patch => boundary edge
+                if (other < 0 || faces[(size_t)other].patchId != P.id) {
+                    boundary++;
+
+                    // 如果另一側有面，就看是不是接近垂直的「牆」
+                    if (other >= 0) {
+                        Vec3 nWall = faces[(size_t)other].n;
+                        if (norm(nWall) > 0.5f) {
+                            float d = std::fabs(dot(nWall, nPatch)); // cos(angle)
+                            if (d < cosVertical) {
+                                vwalls++;
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        P.boundaryEdges = boundary;
+        P.verticalWalls = vwalls;
+
+        if (boundary > 0) {
+            dbg_hasBoundary++;
+
+            if ((int)P.faces.size() >= 20 && P.maxAngleDeg <= 2.0f) {
+                float vratio = (boundary > 0)
+                    ? (float)vwalls / (float)boundary
+                    : 0.0f;
+                float dotZ = nPatch.z;
+
+                std::printf(
+                    "[surg6] patch id=%d faces=%zu area=%.3f maxAng=%.3f "
+                    "n=(%.4f,%.4f,%.4f) dotZ=%.3f "
+                    "bdry=%d vwalls=%d vRatio=%.3f\n",
+                    P.id,
+                    P.faces.size(), P.area, P.maxAngleDeg,
+                    nPatch.x, nPatch.y, nPatch.z, dotZ,
+                    boundary, vwalls, vratio
+                );
+            }
+        }
+    }
+
+    std::printf(
+        "[surg6] summary: patches=%zu considered=%d withBoundary=%d\n",
+        patches.size(), dbg_considered, dbg_hasBoundary
+    );
+
+    // ---------- Step 7: 階段 2：篩選「導孔端面」候選 ----------
+    std::vector<PatchInfo*> drillPatches;
+    drillPatches.reserve(patches.size());
+
+    for (PatchInfo& P : patches)
+    {
+        // 面數太少直接跳過，避免小雜訊
+        if (P.faces.size() < 5 || P.area <= 0.0f)
+            continue;
+
+        if (!isDrillPatchByEdges(v, edgeMap, faces, P))
+            continue;
+
+        drillPatches.push_back(&P);
+
+        float vratio = (P.boundaryEdges > 0)
+            ? (float)P.verticalWalls / (float)P.boundaryEdges
+            : 0.0f;
+
+        std::printf("[surg2] DRILL patch id=%d faces=%zu area=%.3f maxAng=%.3f vRatio=%.3f\n",
+            P.id,
+            P.faces.size(),
+            P.area,
+            P.maxAngleDeg,
+            vratio);
+    }
+
+    GuideSearchResult r{};
+    r.found = false;
+    r.dir = v3(0.0f, 0.0f, 1.0f);
+
+    if (drillPatches.empty())
+    {
+        std::printf("[surg] no drill patch found in STEP2\n");
+        return r;
+    }
+
+    // 目前先用第一個導孔端面當旋轉參考
+    PatchInfo* best = drillPatches.front();
+    r.found = true;
+    r.dir = normalize(best->avgNormal);
+
+    std::printf("[surg] best drill patch id=%d faces=%zu area=%.3f maxAng=%.3f\n",
+        best->id,
+        best->faces.size(),
+        best->area,
+        best->maxAngleDeg);
+
+    return r;
+}
+
+// ======================== 對外 API ========================
+
+int compute_auto_orientation_SurgGuide_mod(
+    const float* v,
+    int              nv,
+    const uint32_t* tri,
+    int              ntri,
+    float            out_rad3[3]
+) {
+    if (!v || nv <= 0 || !out_rad3) {
+        std::printf("[surg] BAD_INPUT v/nv/out\n");
+        return DAO_ERR_BAD_INPUT;
+    }
+
+    // tri 容錯：若 ntri 明顯是 index 數量，轉成三角形數
+    if (tri && ntri > nv) {
+        ntri /= 3;
+    }
+    if (!tri || ntri <= 0) {
+        std::printf("[surg] BAD_INPUT tri\n");
+        out_rad3[0] = out_rad3[1] = out_rad3[2] = 0.0f;
+        return DAO_ERR_BAD_INPUT;
+    }
+
+    GuideSearchResult r = find_guide_direction(v, nv, tri, ntri);
+
+    if (!r.found) {
+        std::printf("[surg] NOT FOUND, fallback no-rotation\n");
+        out_rad3[0] = out_rad3[1] = out_rad3[2] = 0.0f;
+        return DAO_OK;
+    }
+
+    // 導孔方向要朝 +Z，因此用 -dir 丟進「對齊 -Z」的公式
+    Vec3 target = v3(-r.dir.x, -r.dir.y, -r.dir.z);
+    normal_to_euler_XYZ_align_to_minusZ(target, out_rad3);
+
+    std::printf("[surg] out_rad3 = (%.6f, %.6f, %.6f)\n",
+        out_rad3[0], out_rad3[1], out_rad3[2]);
+
+    return DAO_OK;
+}

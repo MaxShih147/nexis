@@ -1,0 +1,52 @@
+{
+  "Sonic 4K 2022": {
+    "slug": "sonic_4k_2022",
+    "file": "sonic_4k_2022.json",
+    "profile_count": 112
+  },
+  "Sonic XL 4K": {
+    "slug": "sonic_xl_4k",
+    "file": "sonic_xl_4k.json",
+    "profile_count": 66
+  },
+  "Sonic XL 4K 2022": {
+    "slug": "sonic_xl_4k_2022",
+    "file": "sonic_xl_4k_2022.json",
+    "profile_count": 115
+  },
+  "Sonic XL 4K Plus": {
+    "slug": "sonic_xl_4k_plus",
+    "file": "sonic_xl_4k_plus.json",
+    "profile_count": 111
+  },
+  "Lumii DLP 2K": {
+    "slug": "lumii_dlp_2k",
+    "file": "lumii_dlp_2k.json",
+    "profile_count": 40
+  },
+  "Lumii DLP 2K Mini Plate": {
+    "slug": "lumii_dlp_2k_mini_plate",
+    "file": "lumii_dlp_2k_mini_plate.json",
+    "profile_count": 32
+  },
+  "Sonic CS+": {
+    "slug": "sonic_cs_plus",
+    "file": "sonic_cs_plus.json",
+    "profile_count": 32
+  },
+  "Sonic CS+ Mini Plate": {
+    "slug": "sonic_cs_plus_mini_plate",
+    "file": "sonic_cs_plus_mini_plate.json",
+    "profile_count": 31
+  },
+  "Sonic LS+": {
+    "slug": "sonic_ls_plus",
+    "file": "sonic_ls_plus.json",
+    "profile_count": 16
+  },
+  "Sonic LS+ Large Plate": {
+    "slug": "sonic_ls_plus_large_plate",
+    "file": "sonic_ls_plus_large_plate.json",
+    "profile_count": 16
+  }
+}

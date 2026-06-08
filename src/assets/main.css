@@ -1,0 +1,120 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --p-select-background: transparent ; 
+  --p-select-border: transparent;
+  --p-select-sm-padding-x: 0;
+  --auth-font-display: 'Plus Jakarta Sans', sans-serif;
+  --auth-font-body: 'Inter', sans-serif;
+}
+
+body {
+  font-family: var(--auth-font-body);
+  background: #fafafa;
+  color: #09090b;
+}
+
+
+@layer components {
+  .panel {
+    @apply 
+    /* shape */
+    rounded-md w-60 h-full
+    /* layout */
+    box-border flex flex-col divide-y
+    /* position */
+    relative z-40 
+    /* colors */
+    bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-300 divide-zinc-200 dark:divide-zinc-800
+  }
+
+  .btn {
+    @apply
+    /* position */
+    relative
+    /* layout */
+    items-center inline-flex text-center align-bottom justify-center
+    /* shape */
+    rounded-md
+  }
+
+  .btn-icon {
+    @apply
+    /* layout */
+    size-10 p-2  flex items-center justify-center
+    /* state */
+  hover:bg-zinc-800
+    /* transition */
+    transition-colors duration-200
+    /* colors */
+    text-white 
+  }
+
+  .input {
+    @apply
+    px-2 py-1 border border-zinc-700 rounded-md min-w-0 bg-inherit
+  }
+}
+
+
+@layer utilities {
+  .no-scrollbar {
+    scrollbar-width: none; /* For Firefox */
+    -ms-overflow-style: none; /* For Internet Explorer and Edge */
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none; /* For Chrome, Safari, and Opera */
+  }
+}
+
+/* ─── Auth animations ──────────────────────────────────────────────────── */
+
+@keyframes auth-card-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.auth-card-enter {
+  animation: auth-card-in 300ms cubic-bezier(.165, .84, .44, 1) both;
+}
+
+.auth-error-enter-active,
+.auth-resend-enter-active {
+  transition: opacity 180ms cubic-bezier(.165, .84, .44, 1),
+              transform 180ms cubic-bezier(.165, .84, .44, 1);
+}
+.auth-error-leave-active,
+.auth-resend-leave-active {
+  transition: opacity 120ms cubic-bezier(.165, .84, .44, 1),
+              transform 120ms cubic-bezier(.165, .84, .44, 1);
+}
+.auth-error-enter-from,
+.auth-error-leave-to,
+.auth-resend-enter-from,
+.auth-resend-leave-to {
+  opacity: 0;
+  transform: translateY(-4px);
+}
+
+.auth-check-enter-active,
+.auth-check-leave-active {
+  transition: opacity 60ms cubic-bezier(.165, .84, .44, 1);
+}
+.auth-check-enter-from,
+.auth-check-leave-to {
+  opacity: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .auth-card-enter,
+  .auth-error-enter-active, .auth-error-leave-active,
+  .auth-check-enter-active, .auth-check-leave-active,
+  .auth-resend-enter-active, .auth-resend-leave-active {
+    animation: none !important;
+    transition: none !important;
+  }
+}

@@ -1,0 +1,17 @@
+在power shell：
+
+cd C:\Users\user\source\repos\Orientation\Orientation
+
+
+
+& "C:\Users\user\emsdk\upstream\emscripten\em++.bat" src\main.cpp src\dao_math.cpp src\auto_orient_core.cpp src\auto_orient_surg_guide.cpp -I include -O3 -DNDEBUG -s MODULARIZE=1 -s EXPORT_ES6=1 -s EXPORT_NAME=DaoModule -s ENVIRONMENT=web,worker -s ALLOW_MEMORY_GROWTH=1 -s EXPORTED_FUNCTIONS="['_malloc','_free','_dao_auto_orient_compute_rotation']" -s EXPORTED_RUNTIME_METHODS="['cwrap','ccall','HEAPU8','HEAPF32','HEAPU32','UTF8ToString']" -o dist/dao.js
+
+
+
+& "C:\Users\user\emsdk\upstream\emscripten\em++.bat" src\main.cpp src\dao_math.cpp src\auto_orient_core.cpp src\auto_orient_surg_guide.cpp src\auto_orient_splint.cpp -I include -O3 -DNDEBUG -s MODULARIZE=1 -s EXPORT_ES6=1 -s EXPORT_NAME=DaoModule -s ENVIRONMENT=web,worker -s ALLOW_MEMORY_GROWTH=1 -s EXPORTED_FUNCTIONS="['_malloc','_free','_dao_auto_orient_compute_rotation']" -s EXPORTED_RUNTIME_METHODS="['cwrap','ccall','HEAPU8','HEAPF32','HEAPU32','UTF8ToString']" -o dist/dao.js
+
+
+新版指令
+& "C:\Users\user\emsdk\upstream\emscripten\em++.bat" src\main.cpp src\dao_math.cpp src\auto_orient_core.cpp src\auto_orient_surg_guide.cpp src\auto_orient_splint.cpp src\auto_orient_temp_cb.cpp -I include -O3 -DNDEBUG -s MODULARIZE=1 -s EXPORT_ES6=1 -s EXPORT_NAME=DaoModule -s ENVIRONMENT=web,worker -s ALLOW_MEMORY_GROWTH=1 -s EXPORTED_FUNCTIONS="['_malloc','_free','_dao_auto_orient_compute_rotation']" -s EXPORTED_RUNTIME_METHODS="['cwrap','ccall','HEAPU8','HEAPF32','HEAPU32','UTF8ToString']" -o dist/dao.js
+
+

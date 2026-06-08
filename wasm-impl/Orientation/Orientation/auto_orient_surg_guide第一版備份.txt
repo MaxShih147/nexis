@@ -1,0 +1,453 @@
+
+#include <cstdint>
+#include <vector>
+#include <cmath>
+#include <algorithm>
+#include <limits>
+#include <unordered_map>
+#include "dao_api.h"
+#include "dao_math.h"
+
+using dao_m::Vec3;
+using dao_m::Mat3;
+using dao_m::v3;
+using dao_m::dot;
+using dao_m::cross;
+using dao_m::norm;
+using dao_m::normalize;
+using dao_m::mul;
+using dao_m::rot_from_u_to_v;
+
+enum HoleType : int32_t { HOLE_CLOSED = 0, HOLE_NOTCHED = 1 };
+
+struct SurgHole {
+    HoleType type;
+    Vec3 axis_unit;          // 孔軸（單位向量）
+    Vec3 centerline_point;   // 軸線上一點
+    float radius_mean;       // mm
+    // 缺口孔
+    Vec3 notch_dir_unit;     // 缺口方向（在孔平面內）
+    float notch_span_rad;    // 缺口張角
+};
+
+// ---------------- 小工具 ----------------
+static inline float clampf(float x, float a, float b) { return x < a ? a : (x > b ? b : x); }
+
+static Mat3 rotZ(float rad) {
+    float c = std::cos(rad), s = std::sin(rad);
+    Mat3 R{};
+    R.m[0] = c; R.m[1] = -s; R.m[2] = 0;
+    R.m[3] = s; R.m[4] = c; R.m[5] = 0;
+    R.m[6] = 0; R.m[7] = 0; R.m[8] = 1;
+    return R;
+}
+
+// 取 R^T * Z（Z=(0,0,1)），在本檔用於快速評分
+static inline Vec3 zdir_from_R(const Mat3& R) {
+    // row-major: 第三列即 R^T·Z
+    return v3(R.m[6], R.m[7], R.m[8]);
+}
+
+// ---------------- 快速評分核心 ----------------
+
+// 高度包絡（不旋轉點）：H = max_p <p, z_dir> - min_p <p, z_dir>
+static float height_envelope_by_zdir(const float* v, int nv, const Vec3& zdir) {
+    float zmin = std::numeric_limits<float>::infinity();
+    float zmax = -zmin;
+    for (int i = 0; i < nv; ++i) {
+        float px = v[i * 3 + 0], py = v[i * 3 + 1], pz = v[i * 3 + 2];
+        float z = px * zdir.x + py * zdir.y + pz * zdir.z;
+        zmin = std::min(zmin, z);
+        zmax = std::max(zmax, z);
+    }
+    return (zmax - zmin);
+}
+
+// 一次性預計算：面法向單位向量與面積
+struct FaceNA { Vec3 n; float area; };
+
+static void build_face_normals_and_areas(const float* v, const uint32_t* tri, int ntri,
+    std::vector<FaceNA>& out)
+{
+    out.clear();
+    out.reserve(ntri);
+    for (int t = 0; t < ntri; ++t) {
+        uint32_t i0 = tri[t * 3 + 0], i1 = tri[t * 3 + 1], i2 = tri[t * 3 + 2];
+        Vec3 p0{ v[i0 * 3 + 0],v[i0 * 3 + 1],v[i0 * 3 + 2] };
+        Vec3 p1{ v[i1 * 3 + 0],v[i1 * 3 + 1],v[i1 * 3 + 2] };
+        Vec3 p2{ v[i2 * 3 + 0],v[i2 * 3 + 1],v[i2 * 3 + 2] };
+        Vec3 e1 = v3(p1.x - p0.x, p1.y - p0.y, p1.z - p0.z);
+        Vec3 e2 = v3(p2.x - p0.x, p2.y - p0.y, p2.z - p0.z);
+        Vec3 n2 = cross(e1, e2);
+        float area2 = norm(n2);
+        if (area2 <= 0.f) continue;
+        FaceNA fa;
+        fa.n = normalize(n2);
+        fa.area = 0.5f * area2;
+        out.push_back(fa);
+    }
+}
+
+// 面積加權 RMS 傾角（不旋轉法向）：θ = arccos(|<n, z_dir>|)
+static float tilt_rms_by_zdir(const std::vector<FaceNA>& fnas, const Vec3& zdir) {
+    double wsum = 0.0, acc = 0.0;
+    for (const auto& fa : fnas) {
+        float cosang = std::fabs(dot(fa.n, zdir));
+        cosang = clampf(cosang, 0.f, 1.f);
+        float theta = std::acos(cosang);
+        acc += double(fa.area) * double(theta) * double(theta);
+        wsum += double(fa.area);
+    }
+    if (wsum <= 0.0) return 0.f;
+    return float(std::sqrt(acc / wsum));
+}
+
+// ---------------- 幾何擬合（孔偵測輔助） ----------------
+
+// 粗版 PCA 平面（穩定即可）：回中心 c、法向 n、平面基底 u,v
+static void fit_plane_PCA(const std::vector<Vec3>& P, Vec3& c, Vec3& n, Vec3& u, Vec3& v) {
+    c = v3(0, 0, 0);
+    for (const auto& p : P) { c.x += p.x; c.y += p.y; c.z += p.z; }
+    float inv = 1.0f / std::max(1, (int)P.size());
+    c.x *= inv; c.y *= inv; c.z *= inv;
+
+    // 粗估最小變異方向（避免重算本徵分解）
+    double xx = 0, xy = 0, xz = 0, yy = 0, yz = 0, zz = 0;
+    for (const auto& p : P) {
+        double dx = p.x - c.x, dy = p.y - c.y, dz = p.z - c.z;
+        xx += dx * dx; xy += dx * dy; xz += dx * dz;
+        yy += dy * dy; yz += dy * dz; zz += dz * dz;
+    }
+    // 取變異最小的軸：zz/xx/yy 比較（簡化但對圓環邊界夠用）
+    if (zz <= xx && zz <= yy)      n = v3(0, 0, 1);
+    else if (xx <= yy && xx <= zz) n = v3(1, 0, 0);
+    else                           n = v3(0, 1, 0);
+
+    n = normalize(n);
+    Vec3 tmp = std::fabs(n.z) < 0.9f ? v3(0, 0, 1) : v3(1, 0, 0);
+    u = normalize(cross(tmp, n));
+    v = cross(n, u);
+}
+
+// 投影到平面 (u,v)
+static void project_to_plane_2D(const std::vector<Vec3>& P, const Vec3& c,
+    const Vec3& u, const Vec3& v, std::vector<Vec3>& Q2) {
+    Q2.resize(P.size());
+    for (size_t i = 0; i < P.size(); ++i) {
+        Vec3 d = v3(P[i].x - c.x, P[i].y - c.y, P[i].z - c.z);
+        Q2[i].x = dot(d, u);
+        Q2[i].y = dot(d, v);
+        Q2[i].z = 0.0f;
+    }
+}
+
+// 2D 圓擬合（簡化 Kåsa）
+static void fit_circle_2D(const std::vector<Vec3>& Q2, Vec3& ctr2, float& r, float& mse) {
+    double sumx = 0, sumy = 0, sumxx = 0, sumyy = 0, sumxy = 0, sumxz = 0, sumyz = 0;
+    int n = (int)Q2.size();
+    for (const auto& q : Q2) {
+        double x = q.x, y = q.y;
+        double z = x * x + y * y;
+        sumx += x; sumy += y; sumxx += x * x; sumyy += y * y; sumxy += x * y; sumxz += x * z; sumyz += y * z;
+    }
+    double C = n * sumxx - sumx * sumx;
+    double D = n * sumxy - sumx * sumy;
+    double E = n * sumyy - sumy * sumy;
+    double G = 0.5 * (n * sumxz - sumx * (sumxx + sumyy));
+    double H = 0.5 * (n * sumyz - sumy * (sumxx + sumyy));
+    double det = C * E - D * D;
+    if (std::fabs(det) < 1e-12) {
+        ctr2.x = 0; ctr2.y = 0; r = 0; mse = 1e6f; return;
+    }
+    ctr2.x = float((G * E - D * H) / det);
+    ctr2.y = float((C * H - D * G) / det);
+    double err = 0, rs = 0;
+    for (const auto& q : Q2) { double dx = q.x - ctr2.x, dy = q.y - ctr2.y; rs += std::sqrt(dx * dx + dy * dy); }
+    r = float(rs / n);
+    for (const auto& q : Q2) { double dx = q.x - ctr2.x, dy = q.y - ctr2.y; double d = std::sqrt(dx * dx + dy * dy); double e = d - r; err += e * e; }
+    mse = float(err / n);
+}
+
+static void largest_angular_gap(const std::vector<Vec3>& Q2, const Vec3& ctr2, float& gap, float& mid) {
+    constexpr float PI = 3.14159265358979323846f;
+    int n = (int)Q2.size();
+    std::vector<float> ang(n);
+    for (int i = 0; i < n; ++i) {
+        float ax = Q2[i].x - ctr2.x, ay = Q2[i].y - ctr2.y;
+        ang[i] = std::atan2(ay, ax);
+    }
+    std::sort(ang.begin(), ang.end());
+    float best = -1.f, bestMid = 0.f;
+    for (int i = 0; i < n; ++i) {
+        int j = (i + 1) % n;
+        float a = ang[i], b = ang[j];
+        float d = (j == 0) ? float((b + 2.0f * PI) - a) : (b - a);
+        if (d > best) { best = d; bestMid = a + d * 0.5f; if (bestMid > PI) bestMid -= 2.0f * PI; }
+    }
+    gap = best; mid = bestMid;
+}
+
+// ---------------- 邊界抽取（找孔環/缺口鏈） ----------------
+struct EdgeKey { uint32_t a, b; };
+struct EdgeKeyHash {
+    size_t operator()(const EdgeKey& k) const noexcept {
+        // 避免 32bit 左移溢位，採用互質乘數的組合哈希
+        return size_t(k.a) * 73856093u ^ size_t(k.b) * 19349663u;
+    }
+};
+struct EdgeKeyEq {
+    bool operator()(const EdgeKey& x, const EdgeKey& y) const noexcept {
+        return x.a == y.a && x.b == y.b;
+    }
+};
+static inline EdgeKey undirected(uint32_t i, uint32_t j) {
+    return (i < j) ? EdgeKey{ i,j } : EdgeKey{ j,i };
+}
+
+static void extract_boundary_graph(const uint32_t* tri, int ntri,
+    std::unordered_map<uint32_t, std::vector<uint32_t>>& adj,
+    bool& hasBoundary)
+{
+    std::unordered_map<EdgeKey, int, EdgeKeyHash, EdgeKeyEq> cnt;
+    cnt.reserve(size_t(ntri) * 2);
+    auto add_edge = [&](uint32_t i, uint32_t j) {
+        EdgeKey e = undirected(i, j);
+        cnt[e] += 1;
+        };
+    for (int t = 0; t < ntri; ++t) {
+        uint32_t i0 = tri[t * 3 + 0], i1 = tri[t * 3 + 1], i2 = tri[t * 3 + 2];
+        add_edge(i0, i1); add_edge(i1, i2); add_edge(i2, i0);
+    }
+    hasBoundary = false;
+    for (const auto& kv : cnt) {
+        if (kv.second == 1) {
+            hasBoundary = true;
+            uint32_t a = kv.first.a, b = kv.first.b;
+            adj[a].push_back(b);
+            adj[b].push_back(a);
+        }
+    }
+}
+
+static void boundary_components(const std::unordered_map<uint32_t, std::vector<uint32_t>>& adj,
+    std::vector<std::vector<uint32_t>>& loops,
+    std::vector<std::vector<uint32_t>>& chains)
+{
+    std::unordered_map<uint32_t, int> deg;
+    deg.reserve(adj.size());
+    for (const auto& kv : adj) deg[kv.first] = int(kv.second.size());
+
+    std::unordered_map<uint32_t, bool> vis;
+    vis.reserve(adj.size());
+
+    // 開放鏈：degree==1 起點
+    for (const auto& kv : adj) {
+        uint32_t s = kv.first;
+        if (vis[s] || deg[s] != 1) continue;
+        std::vector<uint32_t> path;
+        uint32_t cur = s, prev = UINT32_MAX;
+        while (true) {
+            vis[cur] = true;
+            path.push_back(cur);
+            const auto& nbr = adj.at(cur);
+            uint32_t nxt = UINT32_MAX;
+            for (uint32_t t : nbr) { if (t != prev) { nxt = t; break; } }
+            if (nxt == UINT32_MAX) break;
+            prev = cur; cur = nxt;
+            if (vis[cur]) break;
+        }
+        if (path.size() >= 2) chains.push_back(std::move(path));
+    }
+
+    // 閉合環：剩餘且度數為2
+    for (const auto& kv : adj) {
+        uint32_t s = kv.first;
+        if (vis[s]) continue;
+        if (deg[s] == 2) {
+            std::vector<uint32_t> ring;
+            uint32_t cur = s, prev = UINT32_MAX;
+            while (true) {
+                vis[cur] = true;
+                ring.push_back(cur);
+                const auto& nbr = adj.at(cur);
+                uint32_t nxt = (nbr[0] == prev) ? nbr[1] : nbr[0];
+                prev = cur; cur = nxt;
+                if (cur == s) { break; }
+                if (vis[cur]) break;
+            }
+            if (ring.size() >= 3) loops.push_back(std::move(ring));
+        }
+    }
+}
+
+// 從邊界元件估計孔參數
+static bool estimate_hole_from_boundary(const std::vector<uint32_t>& vidx,
+    const float* vertices,
+    SurgHole& out, bool isLoop,
+    float circ_tol_ratio = 0.06f,   // 殘差/半徑上限
+    float notch_min_gap = 0.6f)     // 缺口最小張角(rad)
+{
+    std::vector<Vec3> P; P.reserve(vidx.size());
+    for (uint32_t i : vidx) {
+        P.push_back(v3(vertices[i * 3 + 0], vertices[i * 3 + 1], vertices[i * 3 + 2]));
+    }
+    // 平面 + 投影 + 圓擬合
+    Vec3 c, n, u, v;
+    fit_plane_PCA(P, c, n, u, v);
+    std::vector<Vec3> Q2; project_to_plane_2D(P, c, u, v, Q2);
+    Vec3 ctr2; float r, mse;
+    fit_circle_2D(Q2, ctr2, r, mse);
+    if (r <= 1e-6f) return false;
+    float rel = std::sqrt(mse) / std::max(1e-6f, r);
+    if (rel > circ_tol_ratio) return false;
+
+    // 軸與中心
+    Vec3 axis = normalize(n);
+    Vec3 ctr3 = v3(c.x + u.x * ctr2.x + v.x * ctr2.y,
+        c.y + u.y * ctr2.x + v.y * ctr2.y,
+        c.z + u.z * ctr2.x + v.z * ctr2.y);
+
+    out.axis_unit = axis;
+    out.centerline_point = ctr3;
+    out.radius_mean = r;
+
+    if (isLoop) {
+        out.type = HOLE_CLOSED;
+        out.notch_dir_unit = v3(0, 0, 0);
+        out.notch_span_rad = 0.f;
+        return true;
+    }
+    else {
+        float gap, mid; largest_angular_gap(Q2, ctr2, gap, mid);
+        if (gap < notch_min_gap) return false;
+        // 缺口方向（回到3D）
+        Vec3 d2 = v3(std::cos(mid), std::sin(mid), 0.0f);
+        Vec3 dir3 = normalize(v3(u.x * d2.x + v.x * d2.y,
+            u.y * d2.x + v.y * d2.y,
+            u.z * d2.x + v.z * d2.y));
+        out.type = HOLE_NOTCHED;
+        out.notch_dir_unit = dir3;
+        out.notch_span_rad = gap;
+        return true;
+    }
+}
+
+// ---------------- 候選姿態與評分 ----------------
+
+// 建立「對齊」矩陣與（必要時）roll，使 notch 朝 +Y
+static Mat3 build_candidate_R(const SurgHole& h) {
+    const Vec3 Z = v3(0, 0, 1);
+    Vec3 axis = normalize(h.axis_unit);
+    Mat3 R_align = rot_from_u_to_v(axis, Z);
+    if (h.type == HOLE_NOTCHED) {
+        Vec3 n_in = normalize(h.notch_dir_unit);
+        Vec3 n_p = mul(R_align, n_in);            // notch 在對齊後座標
+        float phi = std::atan2(n_p.x, n_p.y);     // 讓缺口朝 +Y
+        Mat3 R_roll = rotZ(-phi);
+        return mul(R_roll, R_align);
+    }
+    else {
+        return R_align; // 封閉孔：roll 不影響 H/T，固定即可
+    }
+}
+
+static int select_best_by_HT(const float* v, int nv,
+    const std::vector<FaceNA>& fnas,
+    const std::vector<Mat3>& Rcands,
+    Mat3& outR)
+{
+    if (Rcands.empty()) return DAO_ERR_BAD_INPUT;
+
+    const size_t m = Rcands.size();
+    std::vector<float> H(m), T(m);
+    float hmin = +std::numeric_limits<float>::infinity(), hmax = -hmin;
+    float tmin = +std::numeric_limits<float>::infinity(), tmax = -tmin;
+
+    for (size_t i = 0; i < m; ++i) {
+        Vec3 zdir = zdir_from_R(Rcands[i]);           // 關鍵：不旋轉模型
+        float Hi = height_envelope_by_zdir(v, nv, zdir);
+        float Ti = tilt_rms_by_zdir(fnas, zdir);
+        H[i] = Hi; T[i] = Ti;
+        hmin = std::min(hmin, Hi); hmax = std::max(hmax, Hi);
+        tmin = std::min(tmin, Ti); tmax = std::max(tmax, Ti);
+    }
+
+    int best = 0; float bestS = +std::numeric_limits<float>::infinity();
+    for (size_t i = 0; i < m; ++i) {
+        float Hn = (H[i] - hmin) / ((hmax - hmin) + 1e-12f);
+        float Tn = (T[i] - tmin) / ((tmax - tmin) + 1e-12f);
+        float S = 0.7f * Hn + 0.3f * Tn;
+        if (S < bestS) { bestS = S; best = int(i); }
+    }
+    outR = Rcands[size_t(best)];
+    return DAO_OK;
+}
+
+// R = Rz*Ry*Rx（內在 XYZ）
+static void mat_to_euler_XYZ(const Mat3& R, float out3[3]) {
+    float r31 = R.m[6], r32 = R.m[7], r33 = R.m[8];
+    float r21 = R.m[3], r11 = R.m[0];
+    float val = clampf(-r31, -1.f, 1.f);
+    float ry = std::asin(val);
+    float rx, rz;
+    const float EPS = 1e-6f;
+    if (std::fabs(std::cos(ry)) < EPS) {
+        rx = 0.f;
+        if (-r31 > 0) { rz = std::atan2(-R.m[1 * 3 + 2], R.m[1 * 3 + 1]); }
+        else { rz = std::atan2(R.m[1 * 3 + 2], R.m[1 * 3 + 1]); }
+    }
+    else {
+        rx = std::atan2(r32, r33);
+        rz = std::atan2(r21, r11);
+    }
+    out3[0] = rx; out3[1] = ry; out3[2] = rz;
+}
+
+// ---------------- 主流程（對外提供） ----------------
+int compute_auto_orientation_SurgGuide_mod(
+    const float* vertices, int nv,
+    const uint32_t* indices, int ntri,
+    float out_rad3[3]
+) {
+    if (!vertices || nv <= 0 || !indices || ntri <= 0 || !out_rad3) return DAO_ERR_BAD_INPUT;
+
+    // 邊界抽取
+    std::unordered_map<uint32_t, std::vector<uint32_t>> adj;
+    bool hasB = false;
+    extract_boundary_graph(indices, ntri, adj, hasB);
+    if (!hasB) return DAO_ERR_BAD_INPUT;
+
+    // 切分元件
+    std::vector<std::vector<uint32_t>> loops, chains;
+    boundary_components(adj, loops, chains);
+
+    // 估孔
+    std::vector<SurgHole> holes; holes.reserve(loops.size() + chains.size());
+    SurgHole h;
+    for (const auto& ring : loops) {
+        if (estimate_hole_from_boundary(ring, vertices, h, /*isLoop=*/true))
+            holes.push_back(h);
+    }
+    for (const auto& chain : chains) {
+        if (estimate_hole_from_boundary(chain, vertices, h, /*isLoop=*/false))
+            holes.push_back(h);
+    }
+    if (holes.empty()) return DAO_ERR_BAD_INPUT;
+
+    // 一次性預計算法向與面積
+    std::vector<FaceNA> fnas;
+    build_face_normals_and_areas(vertices, indices, ntri, fnas);
+
+    // 為每孔建立候選 R（封閉孔：純對齊；缺口孔：再設 roll 讓缺口朝 +Y）
+    std::vector<Mat3> Rcands; Rcands.reserve(holes.size());
+    for (const auto& hh : holes) Rcands.push_back(build_candidate_R(hh));
+
+    // 評分並取最佳
+    Mat3 Ropt{};
+    int rc = select_best_by_HT(vertices, nv, fnas, Rcands, Ropt);
+    if (rc != DAO_OK) return rc;
+
+    // 回傳 XYZ(rad)
+    mat_to_euler_XYZ(Ropt, out_rad3);
+    return DAO_OK;
+}

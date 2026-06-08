@@ -1,0 +1,12 @@
+# Visual Studio build output (keep source only)
+x64/
+Debug/
+Release/
+*.obj
+*.pdb
+*.ipdb
+*.iobj
+*.tlog
+*.recipe
+*.vcxproj.user
+*.FileListAbsolute.txt

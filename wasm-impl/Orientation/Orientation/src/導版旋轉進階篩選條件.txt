@@ -1,0 +1,158 @@
+// 檢查某個候選導孔端面 patch 周圍是否存在「導孔通道牆」
+// - 使用 patch 平面法向 nPatch
+// - 使用已建立好的平面基底 ex, ey
+// - 掃描深度 d = 2mm, 5mm，方向 ±nPatch
+// - 通道牆條件：
+//      * 三角面中心距離端面在 [d-Δ, d+Δ] 內（Δ 約 0.5mm）
+//      * 三角面法向與端面法向幾乎垂直：|dot(n_tri, nPatch)| <= cos(87°)
+//      * 這些三角面在平面上的投影 bounding box 落在「端面投影 bbox 膨脹 20%」之內
+//      * 至少累積一定數量的牆三角面，且其 bbox 有最小尺寸
+static bool has_drill_channel_around_patch(
+    const PatchInfo& P,
+    const std::vector<FaceInfo>& faces,
+    const float* v,
+    const Vec3& nPatch,
+    const Vec3& ex,
+    const Vec3& ey)
+{
+    if (faces.empty() || !v)
+        return false;
+
+    // 投影用的原點，就用 patch 中心
+    Vec3 origin = P.center;
+
+    auto projectToPlanePos = [&](const Vec3& p) -> Vec3
+        {
+            Vec3 q{ p.x - origin.x, p.y - origin.y, p.z - origin.z };
+            float u = dot(q, ex);
+            float vv = dot(q, ey);
+            return v3(u, vv, 0.0f);
+        };
+
+    // 1) 先算 patch 自身在平面上的 bbox，並膨脹 20%
+    float umin = 1e30f, umax = -1e30f;
+    float vmin = 1e30f, vmax = -1e30f;
+
+    for (int fi : P.faces)
+    {
+        const FaceInfo& F = faces[(size_t)fi];
+        uint32_t vids[3] = { F.i0, F.i1, F.i2 };
+        for (int k = 0; k < 3; ++k)
+        {
+            Vec3 p = load_vtx(v, vids[k]);
+            Vec3 uv = projectToPlanePos(p);
+            umin = std::min(umin, uv.x);
+            umax = std::max(umax, uv.x);
+            vmin = std::min(vmin, uv.y);
+            vmax = std::max(vmax, uv.y);
+        }
+    }
+
+    float width = umax - umin;
+    float height = vmax - vmin;
+    if (!(width > 0.0f && height > 0.0f))
+        return false;
+
+    // 膨脹 20%
+    const float expand = 1.2f;
+    float uc = 0.5f * (umin + umax);
+    float vc = 0.5f * (vmin + vmax);
+    float halfW = 0.5f * width * expand;
+    float halfH = 0.5f * height * expand;
+
+    float u_lo = uc - halfW;
+    float u_hi = uc + halfW;
+    float v_lo = vc - halfH;
+    float v_hi = vc + halfH;
+
+    // 2) 通道掃描參數
+    const float depths[2] = { 2.0f, 5.0f };   // mm
+    const float slabHalfThick = 0.5f;             // 每個 slab 厚度的一半
+    const float COS_87 = std::cos(87.0f * 3.14159265f / 180.0f); // 90±3 度用
+
+    const int   MIN_TRI_COUNT = 10;  // 最少牆三角片數
+    const float MIN_BBOX_SIZE = 3.0f; // 通道片段在平面上的最短邊至少 3mm
+
+    // 3) 針對 ±n 方向、每個深度 d 掃描
+    for (int dirSign = -1; dirSign <= 1; dirSign += 2)
+    {
+        float dir = (float)dirSign;
+
+        for (float d : depths)
+        {
+            float targetDist = dir * d;
+
+            int triCount = 0;
+            float cuMin = 1e30f, cuMax = -1e30f;
+            float cvMin = 1e30f, cvMax = -1e30f;
+
+            // 掃描所有三角面，尋找在該 slab 內且幾乎垂直的牆面
+            for (size_t fi = 0; fi < faces.size(); ++fi)
+            {
+                const FaceInfo& F = faces[fi];
+                Vec3 p0 = load_vtx(v, F.i0);
+                Vec3 p1 = load_vtx(v, F.i1);
+                Vec3 p2 = load_vtx(v, F.i2);
+
+                // 三角形中心對端面平面的 signed 距離
+                Vec3 c{
+                    (p0.x + p1.x + p2.x) / 3.0f,
+                    (p0.y + p1.y + p2.y) / 3.0f,
+                    (p0.z + p1.z + p2.z) / 3.0f
+                };
+                Vec3 qc{ c.x - origin.x, c.y - origin.y, c.z - origin.z };
+                float dist = dot(qc, nPatch);
+                if (dist < targetDist - slabHalfThick || dist > targetDist + slabHalfThick)
+                    continue;
+
+                // 法向（未必已歸一化）
+                Vec3 e1{ p1.x - p0.x, p1.y - p0.y, p1.z - p0.z };
+                Vec3 e2{ p2.x - p0.x, p2.y - p0.y, p2.z - p0.z };
+                Vec3 nTri = cross(e1, e2);
+                float nLen = norm(nTri);
+                if (nLen < 1e-6f)
+                    continue;
+                nTri.x /= nLen; nTri.y /= nLen; nTri.z /= nLen;
+
+                float dDot = std::fabs(dot(nTri, nPatch));
+                if (dDot > COS_87)
+                    continue; // 不是 90±3 度的「通道牆」
+
+                // 這個三角面視為通道牆的一部分，統計其投影 bbox
+                Vec3 uv0 = projectToPlanePos(p0);
+                Vec3 uv1 = projectToPlanePos(p1);
+                Vec3 uv2 = projectToPlanePos(p2);
+
+                cuMin = std::min(cuMin, std::min(uv0.x, std::min(uv1.x, uv2.x)));
+                cuMax = std::max(cuMax, std::max(uv0.x, std::max(uv1.x, uv2.x)));
+                cvMin = std::min(cvMin, std::min(uv0.y, std::min(uv1.y, uv2.y)));
+                cvMax = std::max(cvMax, std::max(uv0.y, std::max(uv1.y, uv2.y)));
+
+                ++triCount;
+            }
+
+            if (triCount < MIN_TRI_COUNT)
+                continue;
+
+            float cWidth = cuMax - cuMin;
+            float cHeight = cvMax - cvMin;
+            if (!(cWidth > 0.0f && cHeight > 0.0f))
+                continue;
+
+            float cShort = (cWidth < cHeight) ? cWidth : cHeight;
+            if (cShort < MIN_BBOX_SIZE)
+                continue;
+
+            // 通道片段 bbox 是否落在「端面膨脹 bbox」內
+            if (cuMin >= u_lo && cuMax <= u_hi &&
+                cvMin >= v_lo && cvMax <= v_hi)
+            {
+                // 找到一個滿足條件的 slab，認定有導孔通道
+                return true;
+            }
+        }
+    }
+
+    // 所有 slab 都沒找到明顯的通道牆
+    return false;
+}

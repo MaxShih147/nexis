@@ -1,0 +1,207 @@
+{
+  "Aidite": {
+    "EZPRINT Model": "Dental Model"
+  },
+  "BEGO": {
+    "VarseoSmile Crown Plus": "C&B",
+    "VarseoSmile Teeth": "C&B",
+    "VarseoSmile Temp": "C&B",
+    "VarseoSmile TriniQ": "C&B"
+  },
+  "BJM LAB": {
+    "UNI-P Crown": "C&B"
+  },
+  "Dentona": {
+    "Optiprint Cast": "Casting",
+    "Optiprint Cast nf": "Casting",
+    "Optiprint clara": "Splint",
+    "Optiprint Denture": "Denture Base",
+    "Optiprint Denture 385": "Denture Base",
+    "Optiprint Gingiva": "Gingiva",
+    "Optiprint Gingiva 2.0": "Gingiva",
+    "Optiprint Gingiva 385": "Gingiva",
+    "Optiprint Guide": "Surgical Guide",
+    "Optiprint Guide 405": "Surgical Guide",
+    "Optiprint Laviva": "Denture Base",
+    "Optiprint Lumina": "C&B",
+    "Optiprint Model": "Dental Model",
+    "Optiprint Model 48052": "Dental Model",
+    "Optiprint Model 48053": "Dental Model",
+    "Optiprint Temp": "C&B",
+    "Optiprint Tray": "Tray",
+    "Optiprint Tray 385": "Tray"
+  },
+  "Detax": {
+    "Freeprint Cast 2.0": "Casting",
+    "Freeprint Crown": "C&B",
+    "Freeprint Denture": "Denture Base",
+    "Freeprint Model 2.0": "Dental Model",
+    "Freeprint Model Pro": "Dental Model",
+    "Freeprint Model T": "Dental Model",
+    "Freeprint Ortho": "Surgical Guide",
+    "Freeprint Splint 2.0": "Splint",
+    "Freeprint Temp": "C&B"
+  },
+  "Dreve": {
+    "FotoDent Cast": "Casting",
+    "FotoDent Denture": "Denture Base",
+    "FotoDent Denture Opak": "Denture Base",
+    "FotoDent Denture Opak 385nm": "Denture Base",
+    "FotoDent Denture Transparent": "Denture Base",
+    "FotoDent Denture Transparent 385nm": "Denture Base",
+    "FotoDent Guide": "Surgical Guide",
+    "FotoDent Guide 385nm": "Surgical Guide",
+    "FotoDent Guide 405nm": "Surgical Guide",
+    "FotoDent IBT": "Indirect Bonding Tray",
+    "FotoDent IBT 385nm": "Indirect Bonding Tray",
+    "FotoDent Model2": "Dental Model",
+    "FotoDent Model2 385nm": "Dental Model",
+    "FotoDent Splint": "Splint",
+    "FotoDent Splint 385nm": "Splint"
+  },
+  "Enlighten": {
+    "AA Temp": "C&B",
+    "DD Guide": "Surgical Guide"
+  },
+  "Graphy": {
+    "Flexible Denture": "Denture Base",
+    "Tera Harz_TC-80DP A2": "C&B",
+    "Tera Harz_TFD 23-5": "Denture Base"
+  },
+  "HARZ Labs": {
+    "Dental Cast": "Casting",
+    "Dental Model Black": "Dental Model",
+    "Dental Model Grey": "Dental Model",
+    "Dental Sand": "Dental Model",
+    "Dental Yellow Clear": "Dental Model"
+  },
+  "JamgHe x Phrozen": {
+    "Castable": "Casting",
+    "Dental Pro Model": "Dental Model",
+    "Gingiva Mask": "Gingiva",
+    "Surgical Guide": "Surgical Guide",
+    "Temporary C&B": "C&B"
+  },
+  "Keystone": {
+    "Keyprint KeyCast": "Casting",
+    "Keyprint Keyguide": "Surgical Guide",
+    "Keyprint KeyGuide": "Surgical Guide",
+    "Keyprint KeyModel": "Dental Model",
+    "Keyprint KeyOrtho Model": "Dental Model",
+    "Keyprint KeyOrthoModel": "Dental Model",
+    "Keyprint Keysplint Hard": "Splint",
+    "Keyprint KeySplint Hard": "Splint",
+    "Keyprint Keysplint Soft": "Splint",
+    "Keyprint KeySplint Soft": "Splint",
+    "Keyprint KeyTray": "Tray"
+  },
+  "NextDent": {
+    "Base": "Denture Base",
+    "C&B MFH": "C&B",
+    "C&B MFH N1": "C&B",
+    "Cast": "Casting",
+    "Cast Purple": "Casting",
+    "Denture 3D+": "Denture Base",
+    "Denture Opaque Pink": "Denture Base",
+    "Model": "Dental Model",
+    "Model 2.0": "Dental Model",
+    "Model 2.0 White": "Dental Model",
+    "Model Ortho": "Dental Model",
+    "Ortho Clear": "Splint",
+    "Ortho Clear Clear": "Splint",
+    "Ortho Flex": "Splint",
+    "Ortho IBT": "Indirect Bonding Tray",
+    "Ortho IBT Clear": "Indirect Bonding Tray",
+    "Ortho Rigid": "Splint",
+    "Ortho Rigid Blue": "Splint",
+    "SG": "Surgical Guide",
+    "SG Orange": "Surgical Guide",
+    "Tray": "Tray",
+    "Tray Blue": "Tray",
+    "Try-In": "Try-In"
+  },
+  "Pacdent": {
+    "Rodin Denture 2.0": "Denture Base",
+    "Rodin Denture Base": "Denture Base",
+    "Rodin Denture Base 2.0": "Denture Base",
+    "Rodin Sculpture": "C&B",
+    "Rodin Sculpture 2.0": "C&B",
+    "Rodin Splint": "Splint",
+    "Rodin Splint 2.0": "Splint",
+    "Rodin Surgical Guide": "Surgical Guide",
+    "Rodin Surgical Guide 2.0": "Surgical Guide",
+    "Rodin Titan": "All on X"
+  },
+  "Phrozen": {
+    "ABS-like Gray": null,
+    "ABS-like Resin": null,
+    "ABS-like White": null,
+    "Aqua Gray 4K": null,
+    "Aqua Gray 8K": null,
+    "Aqua Ivory 4K": null,
+    "Aqua Resin": null,
+    "Aqua-Blue": null,
+    "Aqua-Green": null,
+    "Beige Low-Irritation": null,
+    "Beige-Basic Resin": null,
+    "Beige-Flex Resin": null,
+    "Mud-like": null,
+    "Mud-like Coral": null,
+    "Nylon-Green Tough": null,
+    "ONYX PRO 410": null,
+    "ONYX Rigid Pro 410": null,
+    "Rock-Black Stiff": null,
+    "SC-801 Clear Resin": null,
+    "TR250 High Temp": null,
+    "TR250 High Temp Resin": null,
+    "TR250LV High Temp": null,
+    "TR300 Ultra-High Temp": null,
+    "TR300 Ultra-High Temp Resin": null,
+    "Washable - Model Gray": null,
+    "Washable - Rapid Black": null,
+    "Washable Dental Model": null,
+    "Water-Washable Black": null,
+    "Water-Washable Gray": null,
+    "Wax-like Green Castable": null,
+    "Wax-like Violet Castable": null
+  },
+  "Phrozen Dental": {
+    "001": null,
+    "Castable Dental Green": "Casting",
+    "Castable Resin Dental Green": "Casting",
+    "Dental Ortho Model": "Dental Model",
+    "Dental Study Model": "Study Model",
+    "Gingiva Mask": "Gingiva",
+    "Washable Dental Model": "Dental Model"
+  },
+  "Phrozen Engineering": {
+    "Castable Resin Violet": null,
+    "Castable W20 Green": null,
+    "Castable W40 Orange": null,
+    "Nylon-Green Tough": null,
+    "ONYX PRO 410": null,
+    "ONYX Rigid Pro 410": null,
+    "Protowhite": null,
+    "Rock-Black Stiff": null,
+    "TR250LV High Temp": null,
+    "TR300 Ultra-High Temp": null,
+    "TR300 Ultra-High Temp Resin": null
+  },
+  "Saremco": {
+    "Crowntec": "C&B"
+  },
+  "Vericom": {
+    "MAZIC D SG": "Surgical Guide",
+    "MAZIC D Temp": "C&B"
+  },
+  "Whipmix": {
+    "Whipmix Castable Bule": "Casting",
+    "Whipmix Veri cast Os Red": "Casting",
+    "Whipmix Veri Guide Os": "Surgical Guide",
+    "Whipmix Veri Model Golden Brown": "Dental Model",
+    "Whipmix Veri Model10s white": "Dental Model"
+  },
+  "YAMAHACHI DENTAL": {
+    "TrinDy Model": "Dental Model"
+  }
+}

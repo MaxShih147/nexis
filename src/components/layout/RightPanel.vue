@@ -1,19 +1,14 @@
 <script setup>
 import { useDarkMode } from '@/composables/useDarkMode'
 import { useModelStore } from '@/stores/model'
-import { useAuthStore } from '@/stores/useAuthStore'
 import { applyThreeTheme } from '@/utils/theme'
-import { computed, inject, ref, watch } from 'vue'
+import { computed, inject, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useRouter } from 'vue-router'
 
 const { t } = useI18n()
 const modelStore = useModelStore()
-const authStore = useAuthStore()
-const router = useRouter()
 const three = inject('three')
 const { isDark, toggleDarkMode } = useDarkMode()
-const userAvatarRef = ref(null)
 const canExportProject = computed(() => Boolean(three?.projectManager) && modelStore.models.length > 0)
 
 function syncSceneTheme(isDarkMode) {
@@ -21,14 +16,6 @@ function syncSceneTheme(isDarkMode) {
 }
 
 watch(isDark, syncSceneTheme, { immediate: true })
-
-function handleUserClick() {
-  router.push(authStore.isAuthenticated ? '/user/account' : '/user/login')
-}
-
-defineExpose({
-  userAvatarRef,
-})
 
 async function handleExportClick() {
   if (!canExportProject.value)
@@ -46,17 +33,7 @@ async function handleExportClick() {
 <template>
   <aside class="panel text-sm overflow-hidden">
     <!-- panel header -->
-    <div class="flex items-center justify-around py-2 px-1">
-      <Button
-        text
-        rounded
-        severity="contrast"
-        class="right-panel__user-button"
-        :aria-label="authStore.isAuthenticated ? t('features.auth.userNav.account') : t('features.auth.loginTitle')"
-        @click="handleUserClick"
-      >
-        <Avatar ref="userAvatarRef" :label="authStore.userAvatarLabel" shape="circle" class="right-panel__user-avatar" />
-      </Button>
+    <div class="flex items-center justify-between py-2 px-1">
       <Button text :icon="isDark ? 'icon-[lucide--moon]' : 'icon-[lucide--sun]'" @click="toggleDarkMode" />
       <Button
         :label="t('common.actions.export')" severity="secondary" :pt="{

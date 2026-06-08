@@ -8,6 +8,11 @@ import { computed, inject } from 'vue'
 // safety-gap threshold ε (scenario 2): non-touching pairs closer than ε are
 // flagged "near" with their exact minimum distance and a closest-point line.
 
+defineProps({
+  // The floating wrapper renders its own header, so allow hiding the inline one.
+  showHeader: { type: Boolean, default: true },
+})
+
 const three = inject('three')
 const collisionStore = useCollisionStore()
 const { results, tolerance, intersectCount, nearCount, hasCollisions } = storeToRefs(collisionStore)
@@ -71,7 +76,7 @@ function fmtLoc(loc) {
 
 <template>
   <div class="collision-panel flex flex-col gap-3 px-2 py-3 text-sm">
-    <div class="flex items-center justify-between">
+    <div v-if="showHeader" class="flex items-center justify-between">
       <span class="font-medium uppercase tracking-wide text-zinc-400 text-xs">碰撞</span>
       <span
         class="text-xs font-medium"

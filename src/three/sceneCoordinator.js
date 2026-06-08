@@ -78,9 +78,24 @@ export function createSceneCoordinator(container) {
   const faceSelectionManager = new FaceSelectionManager(selectionManager, render, modelStore, meshManager.setToBottom.bind(meshManager))
   meshManager.setFaceSelectionManager(faceSelectionManager)
 
+  // Building shell (procedural walls + columns) — declared here so collision
+  // detection can test placed objects against the static building parts.
+  let _building = null
+  function getBuildingParts() {
+    if (!_building)
+      return []
+    const parts = []
+    _building.traverse((o) => {
+      if (o.isMesh && o.userData?.buildingPart)
+        parts.push(o)
+    })
+    return parts
+  }
+
   // Collision detection (digital-twin interference, Problem 1)
   const collisionManager = new CollisionManager({
     getModels: meshManager.getModels.bind(meshManager),
+    getBuildingParts,
     render,
     scene,
     onResults: results => collisionStore.setResults(results),
@@ -449,7 +464,7 @@ export function createSceneCoordinator(container) {
   }
 
   // ── Building shell (procedural walls + columns) ──
-  let _building = null
+  // `_building` + getBuildingParts() are declared earlier (collision needs them).
 
   function clearBuilding() {
     if (!_building)
@@ -464,6 +479,7 @@ export function createSceneCoordinator(container) {
         mat?.dispose?.()
     })
     _building = null
+    collisionManager.requestRealtimeCheck(null)
     render()
   }
 
@@ -491,6 +507,8 @@ export function createSceneCoordinator(container) {
     _building = generateBuilding({ ...params, floorWidth: width, floorDepth: height })
     scene.add(_building)
     frameToFloor(width, height, _building.userData?.params?.wallHeight ?? 0)
+    // Re-evaluate interference of existing objects against the new building.
+    collisionManager.requestRealtimeCheck(null)
     render()
     return _building.userData
   }

@@ -30,8 +30,10 @@ export class CollisionManager {
    * @param {import('three').Scene} [opts.scene]  for the closest-point overlay
    * @param {(results: Array) => void} [opts.onResults]
    */
-  constructor({ getModels, render, scene, onResults }) {
+  constructor({ getModels, getBuildingParts, render, scene, onResults }) {
     this.getModels = getModels
+    // Static building parts (walls/columns) to test placed objects against.
+    this.getBuildingParts = getBuildingParts || (() => [])
     this.render = render
     this.scene = scene
     this.onResults = onResults || (() => {})
@@ -118,13 +120,23 @@ export class CollisionManager {
     }
   }
 
+  /** Friendly label: building parts read as 牆/柱, otherwise the model name. */
+  _label(obj) {
+    const part = obj.userData?.buildingPart
+    if (part === 'wall')
+      return '牆'
+    if (part === 'column')
+      return '柱'
+    return obj.name || 'model'
+  }
+
   _intersectPair(a, b, boxA, boxB) {
     const info = this._overlapInfo(boxA, boxB)
     return {
       aUuid: a.uuid,
       bUuid: b.uuid,
-      aName: a.name || 'model',
-      bName: b.name || 'model',
+      aName: this._label(a),
+      bName: this._label(b),
       status: 'intersect',
       magnitude: info.magnitude,
       gap: 0,
@@ -139,8 +151,8 @@ export class CollisionManager {
     return {
       aUuid: a.uuid,
       bUuid: b.uuid,
-      aName: a.name || 'model',
-      bName: b.name || 'model',
+      aName: this._label(a),
+      bName: this._label(b),
       status: 'near',
       magnitude: 0,
       gap: closest.distance,
@@ -189,15 +201,26 @@ export class CollisionManager {
     return null
   }
 
-  /** Full scan: every pair. */
+  /**
+   * Full scan: object-vs-object (every model pair) plus object-vs-building
+   * (every model against each static wall/column). Building parts are never
+   * tested against each other.
+   */
   checkAll() {
     const models = this.getModels().filter(m => m.geometry)
-    const boxes = models.map(m => this._worldBox(m))
+    const parts = this.getBuildingParts().filter(m => m.geometry)
+    const mBoxes = models.map(m => this._worldBox(m))
+    const pBoxes = parts.map(m => this._worldBox(m))
     const results = []
 
     for (let i = 0; i < models.length; i++) {
       for (let j = i + 1; j < models.length; j++) {
-        const r = this._evaluate(models[i], models[j], boxes[i], boxes[j])
+        const r = this._evaluate(models[i], models[j], mBoxes[i], mBoxes[j])
+        if (r)
+          results.push(r)
+      }
+      for (let k = 0; k < parts.length; k++) {
+        const r = this._evaluate(models[i], parts[k], mBoxes[i], pBoxes[k])
         if (r)
           results.push(r)
       }
@@ -208,8 +231,8 @@ export class CollisionManager {
   }
 
   /**
-   * Incremental scan for scenario 1 (realtime drag): keep all pairs that don't
-   * involve `uuid`, and recompute only `uuid` vs every other model.
+   * Incremental scan for realtime drag: keep all pairs that don't involve
+   * `uuid`, and recompute only `uuid` vs every other model and the building.
    */
   checkFor(uuid) {
     const models = this.getModels().filter(m => m.geometry)
@@ -225,6 +248,13 @@ export class CollisionManager {
       if (other.uuid === uuid)
         continue
       const r = this._evaluate(target, other, targetBox, this._worldBox(other))
+      if (r)
+        fresh.push(r)
+    }
+    for (const part of this.getBuildingParts()) {
+      if (!part.geometry)
+        continue
+      const r = this._evaluate(target, part, targetBox, this._worldBox(part))
       if (r)
         fresh.push(r)
     }
@@ -296,11 +326,11 @@ export class CollisionManager {
     this.render()
   }
 
-  /** Swap tinted material clones in for hit models; restore the rest. */
+  /** Swap tinted material clones in for hit parts (models + building); restore the rest. */
   _applyHighlight(colorByUuid) {
-    const models = this.getModels()
+    const models = [...this.getModels(), ...this.getBuildingParts()]
 
-    // Restore models that are no longer highlighted
+    // Restore parts that are no longer highlighted
     for (const [uuid, original] of [...this._origMaterial]) {
       if (colorByUuid.has(uuid))
         continue

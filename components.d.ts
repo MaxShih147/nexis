@@ -16,6 +16,7 @@ declare module 'vue' {
     Button: typeof import('primevue/button')['default']
     Checkbox: typeof import('primevue/checkbox')['default']
     ClippingPlane: typeof import('./src/components/features/model_control/ClippingPlane.vue')['default']
+    CollisionFloatingPanel: typeof import('./src/components/features/collision/CollisionFloatingPanel.vue')['default']
     CollisionPanel: typeof import('./src/components/features/collision/CollisionPanel.vue')['default']
     DashboardUploadSliced: typeof import('./src/components/features/file_loading/DashboardUploadSliced.vue')['default']
     Dialog: typeof import('primevue/dialog')['default']

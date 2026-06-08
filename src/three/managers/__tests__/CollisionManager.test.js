@@ -18,9 +18,16 @@ function makeBox(name, x, y, z, size = 10) {
   return mesh
 }
 
-function manager(models) {
+function makeWall(name, x, y, z, size = 10) {
+  const wall = makeBox(name, x, y, z, size)
+  wall.userData.buildingPart = 'wall'
+  return wall
+}
+
+function manager(models, buildingParts = []) {
   return new CollisionManager({
     getModels: () => models,
+    getBuildingParts: () => buildingParts,
     render: () => {},
     onResults: () => {},
   })
@@ -155,5 +162,36 @@ describe('collisionManager (Problem 1, single floor)', () => {
     expect(cm.checkAll()).toHaveLength(1)
     cm.setModelTolerance(a.uuid, null) // back to global 0
     expect(cm.checkAll()).toHaveLength(0)
+  })
+
+  // ── Object vs building (goal 1/3) ──
+
+  it('detects an object intersecting a building wall', () => {
+    const obj = makeBox('設備', 0, 0, 0)
+    const wall = makeWall('wall', 5, 0, 0) // overlaps the object
+    const cm = manager([obj], [wall])
+    const results = cm.checkAll()
+    expect(results).toHaveLength(1)
+    expect(results[0].status).toBe('intersect')
+    expect(results[0].bName).toBe('牆') // building part labelled in Chinese
+  })
+
+  it('does not test building parts against each other', () => {
+    // Two overlapping walls, no movable objects → no results.
+    const w1 = makeWall('wall', 0, 0, 0)
+    const w2 = makeWall('wall', 5, 0, 0)
+    const cm = manager([], [w1, w2])
+    expect(cm.checkAll()).toHaveLength(0)
+  })
+
+  it('flags an object near a wall within the safety gap', () => {
+    const obj = makeBox('設備', 0, 0, 0)
+    const wall = makeWall('wall', 13, 0, 0) // gap 3
+    const cm = manager([obj], [wall])
+    cm.setTolerance(5)
+    const results = cm.checkAll()
+    expect(results).toHaveLength(1)
+    expect(results[0].status).toBe('near')
+    expect(results[0].bName).toBe('牆')
   })
 })

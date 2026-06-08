@@ -56,8 +56,6 @@ async function handleExportClick() {
     <div class="flex-1 overflow-y-auto no-scrollbar">
       <BuildingPanel />
       <VDivider />
-      <CollisionPanel />
-      <VDivider />
       <Tabs v-if="modelStore.selectedModel && modelStore.selectedModel.name" value="0">
         <TabList>
           <Tab value="0" class="flex-grow capitalize !py-3 !text-sm !font-medium">

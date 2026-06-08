@@ -245,6 +245,7 @@ onUnmounted(() => {
 
     <!-- Model toolbar at the bottom -->
     <ModelToolbar v-if="sceneCreated" class="fixed md:absolute z-50 bottom-0 left-0 right-0 mx-auto mb-0 md:mb-4 px-3 pb-3" />
+    <CollisionFloatingPanel v-if="sceneCreated" />
     <ToothLoadingDialog v-model:visible="progressStore.showProgress" :messages="progressStore.messages" />
   </main>
 </template>

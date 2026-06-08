@@ -11,8 +11,6 @@ import { computed, ref } from 'vue'
 export const useCollisionStore = defineStore('collision', () => {
   /** @type {import('vue').Ref<Array>} current interference pairs */
   const results = ref([])
-  /** live re-check while dragging/transforming */
-  const realtime = ref(false)
   /** global safety-gap threshold ε (cm). 0 → pure intersection mode. */
   const tolerance = ref(0)
   /** per-model safety-gap overrides: { [uuid]: number }. Absent → use global. */
@@ -52,7 +50,6 @@ export const useCollisionStore = defineStore('collision', () => {
 
   return {
     results,
-    realtime,
     tolerance,
     modelGaps,
     checking,

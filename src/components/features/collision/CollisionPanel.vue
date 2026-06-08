@@ -10,7 +10,7 @@ import { computed, inject } from 'vue'
 
 const three = inject('three')
 const collisionStore = useCollisionStore()
-const { results, realtime, tolerance, intersectCount, nearCount, hasCollisions } = storeToRefs(collisionStore)
+const { results, tolerance, intersectCount, nearCount, hasCollisions } = storeToRefs(collisionStore)
 
 // Intersections first (red), then near pairs (orange) by ascending gap.
 const sortedResults = computed(() =>
@@ -36,11 +36,6 @@ const statusText = computed(() => {
 
 function runCheck() {
   three?.checkCollisions?.()
-}
-
-function toggleRealtime(value) {
-  realtime.value = value
-  three?.setRealtimeCollision?.(value)
 }
 
 function updateTolerance(value) {
@@ -122,11 +117,6 @@ function fmtLoc(loc) {
         :input-style="{ width: '3.5rem', fontSize: '0.75rem' }"
         @update:model-value="updateTolerance"
       />
-    </div>
-
-    <div class="flex items-center justify-between">
-      <span class="text-xs text-zinc-400">即時（拖曳時）</span>
-      <ToggleSwitch :model-value="realtime" @update:model-value="toggleRealtime" />
     </div>
 
     <!-- Results -->

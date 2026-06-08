@@ -36,7 +36,6 @@ export class CollisionManager {
     this.scene = scene
     this.onResults = onResults || (() => {})
 
-    this.realtime = false
     /** global safety-gap threshold (cm). 0 → pure intersection mode. */
     this.tolerance = 0
     /** per-model safety-gap overrides (uuid → cm). Absent → use global. */
@@ -234,9 +233,13 @@ export class CollisionManager {
     return this.results
   }
 
-  /** Throttle a realtime incremental check to one per animation frame. */
+  /**
+   * Live incremental check, throttled to one per animation frame. Always on:
+   * called from the scene's drag/transform handlers so interference updates as
+   * a movable object is moved (Problem 1, goal 2).
+   */
   requestRealtimeCheck(uuid) {
-    if (!this.realtime || this._rafPending)
+    if (this._rafPending)
       return
     this._rafPending = true
     requestAnimationFrame(() => {
@@ -246,12 +249,6 @@ export class CollisionManager {
       else
         this.checkAll()
     })
-  }
-
-  setRealtime(enabled) {
-    this.realtime = !!enabled
-    if (this.realtime)
-      this.checkAll()
   }
 
   /** Set the global safety-gap threshold and re-scan. */

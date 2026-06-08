@@ -819,10 +819,6 @@ export function createSceneCoordinator(container) {
     // Collision detection (Problem 1)
     checkCollisions: collisionManager.checkAll.bind(collisionManager),
     checkCollisionsFor: collisionManager.checkFor.bind(collisionManager),
-    setRealtimeCollision: (enabled) => {
-      collisionStore.realtime = !!enabled
-      collisionManager.setRealtime(enabled)
-    },
     setCollisionTolerance: (value) => {
       const v = collisionManager.setTolerance(value)
       collisionStore.tolerance = v

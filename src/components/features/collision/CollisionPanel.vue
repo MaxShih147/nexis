@@ -113,7 +113,7 @@ function fmtLoc(loc) {
         :step="1"
         show-buttons
         button-layout="horizontal"
-        suffix=" mm"
+        suffix=" cm"
         size="small"
         class="w-28"
         :input-style="{ width: '3.5rem', fontSize: '0.75rem' }"
@@ -143,7 +143,7 @@ function fmtLoc(loc) {
             class="shrink-0 text-[10px]"
             :class="pair.status === 'intersect' ? 'text-red-300' : 'text-amber-300'"
           >
-            {{ pair.status === 'intersect' ? `vol ${fmtNum(pair.magnitude)}` : `gap ${fmtNum(pair.gap)} mm` }}
+            {{ pair.status === 'intersect' ? `vol ${fmtNum(pair.magnitude)}` : `gap ${fmtNum(pair.gap)} cm` }}
           </span>
         </div>
         <div class="text-[10px] text-zinc-500">loc {{ fmtLoc(pair.location) }}</div>

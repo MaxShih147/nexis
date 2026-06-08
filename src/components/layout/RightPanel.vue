@@ -78,6 +78,8 @@ async function handleExportClick() {
          removed. The Edit tab keeps generic model transforms; this body is the slot
          where collision-detection control params will be added later. -->
     <div class="flex-1 overflow-y-auto no-scrollbar">
+      <BuildingPanel />
+      <VDivider />
       <CollisionPanel />
       <VDivider />
       <Tabs v-if="modelStore.selectedModel && modelStore.selectedModel.name" value="0">

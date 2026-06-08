@@ -21,6 +21,7 @@ import {
   createRotationCommand,
   createScaleCommand,
 } from './commands/index.js'
+import { computeFloorSize, generateBuilding } from './building/BuildingGenerator'
 import { createBaseScene, createPlane, resizePlane } from './createBaseScene'
 import { ProjectManager } from './project/ProjectManager.js'
 import { GeometrySnapshotService } from './snapshots/GeometrySnapshotService.js'
@@ -447,6 +448,53 @@ export function createSceneCoordinator(container) {
     render()
   }
 
+  // ── Building shell (procedural walls + columns) ──
+  let _building = null
+
+  function clearBuilding() {
+    if (!_building)
+      return
+    scene.remove(_building)
+    _building.traverse((child) => {
+      child.geometry?.dispose?.()
+      const mat = child.material
+      if (Array.isArray(mat))
+        mat.forEach(m => m?.dispose?.())
+      else
+        mat?.dispose?.()
+    })
+    _building = null
+    render()
+  }
+
+  /** Frame the camera so a square-ish floor of side `s` (with walls) fits, and
+   * size the near/far clip planes to the scene so orbiting/zooming never clips. */
+  function frameToFloor(width, height, wallHeight = 0) {
+    const s = Math.max(width, height)
+    camera.position.set(-s * 1.05, -s * 1.05, s * 0.75 + wallHeight)
+    cameraControl.target.set(0, 0, wallHeight * 0.5)
+    // Adaptive clip planes: small near for close inspection, generous far so a
+    // full orbit / zoom-out of a large building stays inside the frustum.
+    camera.near = Math.max(1, s * 0.004)
+    camera.far = s * 24 + wallHeight * 4
+    camera.updateProjectionMatrix()
+    cameraControl.update()
+  }
+
+  function regenerateBuilding(params = {}) {
+    clearBuilding()
+    // The platform follows the building: size the floor to fit the rooms.
+    const { width, height } = computeFloorSize(params)
+    if (resizePlane(plane, width, height))
+      axisHelper.render()
+
+    _building = generateBuilding({ ...params, floorWidth: width, floorDepth: height })
+    scene.add(_building)
+    frameToFloor(width, height, _building.userData?.params?.wallHeight ?? 0)
+    render()
+    return _building.userData
+  }
+
   function addModelsToScene() {
     for (const model of meshManager.getModels()) {
       if (!scene.children.includes(model)) {
@@ -782,6 +830,9 @@ export function createSceneCoordinator(container) {
     },
     clearCollisions: collisionManager.clear.bind(collisionManager),
     getCollisionResults: () => collisionManager.results,
+    // Building shell (procedural walls + columns)
+    generateBuilding: regenerateBuilding,
+    clearBuilding,
     // Model access methods
     getSelectedObject: () => selectionManager.selectedObject,
     exportSTL: meshManager.exportSTL.bind(meshManager),

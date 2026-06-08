@@ -12,6 +12,7 @@ declare module 'vue' {
     Avatar: typeof import('primevue/avatar')['default']
     BaseGenerationPanel: typeof import('./src/components/features/BaseGenerationPanel.vue')['default']
     BaseSlicedUploadDialog: typeof import('./src/components/features/file_loading/BaseSlicedUploadDialog.vue')['default']
+    BuildingPanel: typeof import('./src/components/features/building/BuildingPanel.vue')['default']
     Button: typeof import('primevue/button')['default']
     Checkbox: typeof import('primevue/checkbox')['default']
     ClippingPlane: typeof import('./src/components/features/model_control/ClippingPlane.vue')['default']

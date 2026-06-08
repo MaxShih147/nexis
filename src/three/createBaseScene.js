@@ -90,41 +90,25 @@ function setupResizeHandler(container, renderer, camera, axisHelper, scene) {
  * @returns {Array<THREE.Light>} Array of lights
  */
 function createLights() {
-  // Create ambient light
-  const ambientLight = new THREE.AmbientLight(SCENE_COLORS.LIGHT, 0.1)
+  // Even, hotspot-free illumination for large flat walls. A hemisphere light
+  // gives smooth sky/ground fill (flat faces read uniformly), backed by ambient
+  // and two gentle directional lights for slight edge definition. (The old
+  // SpotLight produced bright/dark patches across a single wall face.)
+  const hemisphere = new THREE.HemisphereLight(0xFFFFFF, 0x3A3F46, 0.9)
+  hemisphere.position.set(0, 0, 600)
 
-  // Create directional lights
-  const createDirectionalLight = (x, y, z) => {
-    const light = new THREE.DirectionalLight(SCENE_COLORS.LIGHT, 0.5)
+  const ambientLight = new THREE.AmbientLight(SCENE_COLORS.LIGHT, 0.5)
+
+  const createDirectionalLight = (x, y, z, intensity) => {
+    const light = new THREE.DirectionalLight(SCENE_COLORS.LIGHT, intensity)
     light.position.set(x, y, z)
-    light.castShadow = true
     return light
   }
 
-  const directionalLight1 = createDirectionalLight(50, 350, 50)
-  const directionalLight2 = createDirectionalLight(-350, 50, 50)
+  const keyLight = createDirectionalLight(300, 300, 600, 0.35)
+  const fillLight = createDirectionalLight(-350, -250, 400, 0.25)
 
-  // Create spot light
-  const spotLight = new THREE.SpotLight(SCENE_COLORS.LIGHT)
-  spotLight.position.set(50, -350, 600)
-  spotLight.angle = Math.PI * 0.2
-  spotLight.decay = 0
-  spotLight.castShadow = true
-
-  // Configure spot light shadow
-  Object.assign(spotLight.shadow, {
-    camera: {
-      near: 200,
-      far: 400,
-    },
-    bias: -0.000222,
-    mapSize: {
-      width: 512,
-      height: 512,
-    },
-  })
-
-  return [ambientLight, directionalLight1, directionalLight2, spotLight]
+  return [hemisphere, ambientLight, keyLight, fillLight]
 }
 
 /**
@@ -136,9 +120,10 @@ function createCamera() {
     35, // Field of view
     window.innerWidth / window.innerHeight, // Aspect ratio
     1, // Near clipping plane
-    4000, // Far clipping plane
+    20000, // Far clipping plane (large scenes; refined per-floor in frameToFloor)
   )
-  camera.position.set(-300, -300, 200)
+  // Framed for the default 300×300 floor with ~100-tall walls.
+  camera.position.set(-520, -520, 380)
   return camera
 }
 

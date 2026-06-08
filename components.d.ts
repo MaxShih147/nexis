@@ -7,6 +7,7 @@ export {}
 /* prettier-ignore */
 declare module 'vue' {
   export interface GlobalComponents {
+    AboutDialog: typeof import('./src/components/dialogs/AboutDialog.vue')['default']
     AddPrintersDialog: typeof import('./src/components/features/add_printers/AddPrintersDialog.vue')['default']
     AppearanceSettings: typeof import('./src/components/settings/AppearanceSettings.vue')['default']
     Avatar: typeof import('primevue/avatar')['default']

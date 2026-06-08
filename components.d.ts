@@ -50,6 +50,7 @@ declare module 'vue' {
     RightPanel: typeof import('./src/components/layout/RightPanel.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
+    SafetyGapPanel: typeof import('./src/components/features/collision/SafetyGapPanel.vue')['default']
     Select: typeof import('primevue/select')['default']
     SelectButton: typeof import('primevue/selectbutton')['default']
     SelectDentalMode: typeof import('./src/components/features/printer_settings/SelectDentalMode.vue')['default']

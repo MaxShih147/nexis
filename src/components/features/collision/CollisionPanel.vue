@@ -3,10 +3,9 @@ import { useCollisionStore } from '@/stores/collision'
 import { storeToRefs } from 'pinia'
 import { computed, inject } from 'vue'
 
-// nexis digital-twin collision detection (Problem 1) — Phase 0/1/2 UI.
-// Single fixed floor. A manual full-scan + realtime toggle (scenario 1), plus a
-// safety-gap threshold ε (scenario 2): non-touching pairs closer than ε are
-// flagged "near" with their exact minimum distance and a closest-point line.
+// nexis digital-twin collision detection (Problem 1) — live results list.
+// Detection runs automatically (on add/move/building changes); the global
+// safety gap ε lives in the right sidebar. This panel just shows the findings.
 
 defineProps({
   // The floating wrapper renders its own header, so allow hiding the inline one.
@@ -15,7 +14,7 @@ defineProps({
 
 const three = inject('three')
 const collisionStore = useCollisionStore()
-const { results, tolerance, intersectCount, nearCount, hasCollisions } = storeToRefs(collisionStore)
+const { results, intersectCount, nearCount, hasCollisions } = storeToRefs(collisionStore)
 
 // Intersections first (red), then near pairs (orange) by ascending gap.
 const sortedResults = computed(() =>
@@ -39,20 +38,6 @@ const statusText = computed(() => {
   return parts.join(' · ')
 })
 
-function runCheck() {
-  three?.checkCollisions?.()
-}
-
-function updateTolerance(value) {
-  const v = Math.max(0, Number(value) || 0)
-  tolerance.value = v
-  three?.setCollisionTolerance?.(v)
-}
-
-function clearResults() {
-  three?.clearCollisions?.()
-}
-
 function focusPair(pair) {
   three?.selectModelByUuid?.(pair.aUuid)
 }
@@ -75,53 +60,13 @@ function fmtLoc(loc) {
 </script>
 
 <template>
-  <div class="collision-panel flex flex-col gap-3 px-2 py-3 text-sm">
+  <div class="collision-panel flex flex-col gap-2 px-2 py-3 text-sm">
     <div v-if="showHeader" class="flex items-center justify-between">
       <span class="font-medium uppercase tracking-wide text-zinc-400 text-xs">碰撞</span>
       <span
         class="text-xs font-medium"
         :class="hasCollisions ? (intersectCount ? 'text-red-400' : 'text-amber-400') : 'text-emerald-400'"
       >{{ statusText }}</span>
-    </div>
-
-    <div class="flex flex-col gap-2">
-      <Button
-        size="small"
-        fluid
-        class="!text-xs"
-        label="偵測碰撞"
-        icon="icon-[lucide--scan-search]"
-        @click="runCheck"
-      />
-      <Button
-        v-if="hasCollisions"
-        size="small"
-        severity="secondary"
-        outlined
-        fluid
-        class="!text-xs"
-        label="清除"
-        icon="icon-[lucide--trash-2]"
-        @click="clearResults"
-      />
-    </div>
-
-    <!-- 安全間隙 ε（情境 2） -->
-    <div class="flex items-center justify-between gap-2">
-      <span class="text-xs text-zinc-400">安全間隙 ε</span>
-      <InputNumber
-        :model-value="tolerance"
-        :min="0"
-        :max-fraction-digits="2"
-        :step="1"
-        show-buttons
-        button-layout="horizontal"
-        suffix=" cm"
-        size="small"
-        class="w-28"
-        :input-style="{ width: '3.5rem', fontSize: '0.75rem' }"
-        @update:model-value="updateTolerance"
-      />
     </div>
 
     <!-- Results -->
@@ -148,7 +93,7 @@ function fmtLoc(loc) {
       </div>
     </div>
     <div v-else class="text-xs text-zinc-500">
-      執行偵測，或設定安全間隙 ε 以找出接近的物件。
+      移動或擺放物件時即時偵測干涉；安全間隙於右側設定。
     </div>
   </div>
 </template>

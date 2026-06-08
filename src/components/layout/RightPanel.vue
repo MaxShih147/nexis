@@ -49,25 +49,11 @@ async function handleExportClick() {
       />
     </div>
     <!-- end of panel header -->
-    <!-- panel body -->
-    <!-- nexis: 3D-printing panels (Support / PrinterSettings / Resin summary / Slice)
-         removed. The Edit tab keeps generic model transforms; this body is the slot
-         where collision-detection control params will be added later. -->
+    <!-- panel body: building generation + global safety gap only -->
     <div class="flex-1 overflow-y-auto no-scrollbar">
       <BuildingPanel />
       <VDivider />
-      <Tabs v-if="modelStore.selectedModel && modelStore.selectedModel.name" value="0">
-        <TabList>
-          <Tab value="0" class="flex-grow capitalize !py-3 !text-sm !font-medium">
-            {{ t('common.labels.edit') }}
-          </Tab>
-        </TabList>
-        <TabPanels class="!px-2">
-          <TabPanel value="0">
-            <ModelEditor class="!px-2" />
-          </TabPanel>
-        </TabPanels>
-      </Tabs>
+      <SafetyGapPanel />
     </div>
     <!-- end of panel body -->
   </aside>

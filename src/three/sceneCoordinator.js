@@ -653,6 +653,7 @@ export function createSceneCoordinator(container) {
     const mesh = await meshManager.loadModel(file)
     if (mesh) {
       undoManager.push(createAddModelCommand(mesh, meshManager, render))
+      collisionManager.requestRealtimeCheck(null)
     }
     return mesh
   }
@@ -680,6 +681,7 @@ export function createSceneCoordinator(container) {
       }
     }
     meshManager.placeNewModelsBatch(meshes)
+    collisionManager.requestRealtimeCheck(null)
     return meshes
   }
 
@@ -687,6 +689,7 @@ export function createSceneCoordinator(container) {
     const mesh = meshManager.addShape(name, params)
     if (mesh) {
       undoManager.push(createAddModelCommand(mesh, meshManager, render))
+      collisionManager.requestRealtimeCheck(null)
     }
     return mesh
   }

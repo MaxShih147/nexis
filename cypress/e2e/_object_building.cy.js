@@ -16,7 +16,7 @@ describe('object vs building', () => {
       expect(results.length, 'has interference').to.be.greaterThan(0)
       expect(names.some(n => n === '牆' || n === '柱'), 'hits a wall or column').to.be.true
     })
-    cy.contains('偵測碰撞', { timeout: 8000 }).should('be.visible')
+    cy.contains('Box ↔', { timeout: 8000 }).should('be.visible')
     cy.screenshot('object-vs-building', { capture: 'viewport' })
   })
 })

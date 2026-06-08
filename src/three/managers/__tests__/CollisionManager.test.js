@@ -122,4 +122,38 @@ describe('collisionManager (Problem 1, single floor)', () => {
     expect(results).toHaveLength(1)
     expect(results[0].status).toBe('intersect')
   })
+
+  // ── Per-model safety-gap override ──
+
+  it('uses a per-model gap override when the global gap is 0', () => {
+    const a = makeBox('A', 0, 0, 0)
+    const b = makeBox('B', 13, 0, 0) // gap 3
+    const cm = manager([a, b])
+    expect(cm.checkAll()).toHaveLength(0) // global 0 → nothing
+
+    cm.setModelTolerance(a.uuid, 5) // pair gap = max(5, 0) = 5 > 3 → near
+    const results = cm.checkAll()
+    expect(results).toHaveLength(1)
+    expect(results[0].status).toBe('near')
+  })
+
+  it('takes the larger of the two models gaps for a pair', () => {
+    const a = makeBox('A', 0, 0, 0)
+    const b = makeBox('B', 13, 0, 0) // gap 3
+    const cm = manager([a, b])
+    cm.setModelTolerance(a.uuid, 2) // max(2,0)=2 < 3 → no flag
+    expect(cm.checkAll()).toHaveLength(0)
+    cm.setModelTolerance(b.uuid, 5) // max(2,5)=5 > 3 → near
+    expect(cm.checkAll()).toHaveLength(1)
+  })
+
+  it('clearing an override (null) falls back to the global gap', () => {
+    const a = makeBox('A', 0, 0, 0)
+    const b = makeBox('B', 13, 0, 0)
+    const cm = manager([a, b])
+    cm.setModelTolerance(a.uuid, 5)
+    expect(cm.checkAll()).toHaveLength(1)
+    cm.setModelTolerance(a.uuid, null) // back to global 0
+    expect(cm.checkAll()).toHaveLength(0)
+  })
 })

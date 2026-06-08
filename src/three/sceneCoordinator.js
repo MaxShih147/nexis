@@ -828,6 +828,11 @@ export function createSceneCoordinator(container) {
       collisionStore.tolerance = v
       return v
     },
+    setModelCollisionTolerance: (uuid, value) => {
+      const v = collisionManager.setModelTolerance(uuid, value)
+      collisionStore.setModelGap(uuid, value == null ? null : v)
+      return v
+    },
     clearCollisions: collisionManager.clear.bind(collisionManager),
     getCollisionResults: () => collisionManager.results,
     // Building shell (procedural walls + columns)

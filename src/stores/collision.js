@@ -13,8 +13,10 @@ export const useCollisionStore = defineStore('collision', () => {
   const results = ref([])
   /** live re-check while dragging/transforming */
   const realtime = ref(false)
-  /** safety-gap threshold ε (scene units / mm). 0 → pure intersection mode. */
+  /** global safety-gap threshold ε (cm). 0 → pure intersection mode. */
   const tolerance = ref(0)
+  /** per-model safety-gap overrides: { [uuid]: number }. Absent → use global. */
+  const modelGaps = ref({})
   /** whether a scan is currently running (batch) */
   const checking = ref(false)
   /** timestamp string of the last run (set by the caller) */
@@ -29,6 +31,21 @@ export const useCollisionStore = defineStore('collision', () => {
     results.value = Array.isArray(next) ? next : []
   }
 
+  /** Effective safety gap for a model: its override if set, else the global ε. */
+  function effectiveGap(uuid) {
+    const v = modelGaps.value[uuid]
+    return typeof v === 'number' ? v : tolerance.value
+  }
+
+  function setModelGap(uuid, value) {
+    if (value == null)
+      delete modelGaps.value[uuid]
+    else
+      modelGaps.value[uuid] = value
+    // reassign to trigger reactivity on the object
+    modelGaps.value = { ...modelGaps.value }
+  }
+
   function clear() {
     results.value = []
   }
@@ -37,6 +54,7 @@ export const useCollisionStore = defineStore('collision', () => {
     results,
     realtime,
     tolerance,
+    modelGaps,
     checking,
     lastRunAt,
     intersectCount,
@@ -44,6 +62,8 @@ export const useCollisionStore = defineStore('collision', () => {
     collisionCount,
     hasCollisions,
     setResults,
+    effectiveGap,
+    setModelGap,
     clear,
   }
 })

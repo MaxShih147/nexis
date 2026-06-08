@@ -37,8 +37,10 @@ export class CollisionManager {
     this.onResults = onResults || (() => {})
 
     this.realtime = false
-    /** safety-gap threshold (scene units). 0 → pure intersection mode. */
+    /** global safety-gap threshold (cm). 0 → pure intersection mode. */
     this.tolerance = 0
+    /** per-model safety-gap overrides (uuid → cm). Absent → use global. */
+    this.modelTolerances = new Map()
     this.results = []
 
     /** @type {Map<string, import('three').Material>} uuid → original material */
@@ -149,15 +151,27 @@ export class CollisionManager {
     }
   }
 
+  /** Effective safety gap for a model: its override if set, else the global ε. */
+  _modelTol(uuid) {
+    return this.modelTolerances.has(uuid) ? this.modelTolerances.get(uuid) : this.tolerance
+  }
+
+  /** A pair's safety gap is the larger of the two models' effective gaps. */
+  _pairTol(a, b) {
+    return Math.max(this._modelTol(a.uuid), this._modelTol(b.uuid))
+  }
+
   /**
    * Evaluate one ordered pair. Returns an intersect result, a near result
-   * (only when tolerance > 0 and the gap < tolerance), or null.
+   * (only when the pair's safety gap > 0 and the gap is under it), or null.
    */
   _evaluate(a, b, boxA, boxB) {
-    // Broad phase: pairs farther apart than ε (boxes grown by ε don't overlap)
-    // can be neither intersecting nor within the safety gap.
-    if (this.tolerance > 0) {
-      const grown = boxB.clone().expandByScalar(this.tolerance)
+    const tol = this._pairTol(a, b)
+
+    // Broad phase: pairs farther apart than the gap can be neither intersecting
+    // nor within the safety gap.
+    if (tol > 0) {
+      const grown = boxB.clone().expandByScalar(tol)
       if (!boxA.intersectsBox(grown))
         return null
     }
@@ -168,9 +182,9 @@ export class CollisionManager {
     if (this._intersects(a, b))
       return this._intersectPair(a, b, boxA, boxB)
 
-    if (this.tolerance > 0) {
-      const closest = this._closest(a, b, this.tolerance)
-      if (closest && closest.distance < this.tolerance)
+    if (tol > 0) {
+      const closest = this._closest(a, b, tol)
+      if (closest && closest.distance < tol)
         return this._nearPair(a, b, closest)
     }
     return null
@@ -240,11 +254,21 @@ export class CollisionManager {
       this.checkAll()
   }
 
-  /** Set the safety-gap threshold and re-scan. */
+  /** Set the global safety-gap threshold and re-scan. */
   setTolerance(value) {
     this.tolerance = Math.max(0, Number(value) || 0)
     this.checkAll()
     return this.tolerance
+  }
+
+  /** Set (or clear, with null) a per-model safety-gap override and re-scan. */
+  setModelTolerance(uuid, value) {
+    if (value == null)
+      this.modelTolerances.delete(uuid)
+    else
+      this.modelTolerances.set(uuid, Math.max(0, Number(value) || 0))
+    this.checkAll()
+    return this.modelTolerances.get(uuid)
   }
 
   clear() {

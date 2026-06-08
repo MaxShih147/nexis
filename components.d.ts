@@ -33,6 +33,7 @@ declare module 'vue' {
     ModelEditor: typeof import('./src/components/features/model_control/ModelEditor.vue')['default']
     ModelEditorFieldRow: typeof import('./src/components/features/model_control/ModelEditorFieldRow.vue')['default']
     ModelList: typeof import('./src/components/features/model_info/ModelList.vue')['default']
+    ModelParamsPanel: typeof import('./src/components/features/model_info/ModelParamsPanel.vue')['default']
     ModelToolbar: typeof import('./src/components/features/model_control/ModelToolbar.vue')['default']
     OrthoModeDialog: typeof import('./src/components/dialogs/OrthoModeDialog.vue')['default']
     OrthoProcessingEditor: typeof import('./src/components/features/model_control/OrthoProcessingEditor.vue')['default']

@@ -5,9 +5,12 @@
 //     --config baseUrl=http://localhost:8766,viewportWidth=1440,viewportHeight=900
 const VIEW = { capture: 'viewport', overwrite: true }
 
+// Viewport must match the headless capture window (1280×720 @2x) so the
+// right-hand parameter sidebar (absolute right-0) lands inside the frame
+// instead of being pushed off the edge by a too-wide layout.
 function boot() {
   cy.on('uncaught:exception', () => false)
-  cy.viewport(1440, 900)
+  cy.viewport(1280, 720)
   cy.visit('/')
   cy.get('canvas', { timeout: 20000 }).should('exist')
   cy.window({ timeout: 20000 }).its('__nexis').should('exist')
@@ -39,18 +42,38 @@ describe('nexis README screenshots', () => {
     cy.screenshot('03-scatter-100', VIEW)
   })
 
-  it('04 safety gap — near-miss within ε (building + objects)', () => {
+  it('04 safety gap — near-miss against a building column', () => {
     boot()
     cy.window().then((win) => {
       const api = win.__nexis
       api.generateBuilding({ seed: 7 })
-      api.scatterRandomObjects(45)
-      api.setCollisionTolerance(25) // generous ε → many pairs flagged "接近" (yellow)
+      api.scatterRandomObjects(16) // context objects elsewhere in the building
+      // Find the most central column and drop a box ~10 cm beside it (a clean,
+      // framed near-miss against a 柱) instead of relying on the random scatter.
+      const scene = api.getScene()
+      scene.updateMatrixWorld(true)
+      const cols = []
+      scene.traverse((o) => {
+        if (o.isMesh && o.userData?.buildingPart === 'column') {
+          const m = o.matrixWorld.elements
+          cols.push({ x: m[12], y: m[13], z: m[14] })
+        }
+      })
+      const col = cols.sort((a, b) => (a.x * a.x + a.y * a.y) - (b.x * b.x + b.y * b.y))[0]
+      const box = api.addShape('Box', { width: 20, height: 20, depth: 20 })
+      api.updatePosition({ x: col.x + 35, y: col.y, z: box.position.z }, box) // gap ~10 cm
+      api.setCollisionTolerance(15) // 10 < 15 → "接近"
       api.checkCollisions()
+      const fx = col.x + 17
+      api.restoreCamera({
+        position: { x: fx + 150, y: col.y - 235, z: 205 },
+        target: { x: fx, y: col.y, z: 40 },
+      })
       api.render()
     })
-    cy.contains('接近', { timeout: 12000 }).should('be.visible')
-    cy.wait(1500)
+    // Select the "接近" filter tag so the panel lists only near-miss pairs.
+    cy.contains('button', '接近', { timeout: 12000 }).click()
+    cy.wait(1200)
     cy.screenshot('04-safety-gap', VIEW)
   })
 

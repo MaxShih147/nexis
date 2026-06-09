@@ -210,11 +210,7 @@ onUnmounted(() => {
     <!-- Right panel container - only shown when scene is ready -->
     <div v-if="sceneCreated">
       <div class="hidden md:flex p-4 absolute gap-4 right-0 max-h-[100svh] h-full">
-        <ClippingPlane class="py-10" />
         <RightPanel />
-      </div>
-      <div class="flex md:hidden fixed right-10 top-80 bottom-20">
-        <ClippingPlane class=" h-full" />
       </div>
       <div
         class="fixed md:hidden top-0 right-0 bottom-12 p-4 flex gap-4 max-h-[100svh] transition-transform duration-300 z-40"

@@ -10,61 +10,8 @@ const router = createRouter({
       name: 'home',
       component: HomeView,
     },
-    {
-      path: '/user/login',
-      name: 'userLogin',
-      component: () => import('@/views/user/LoginView.vue'),
-      meta: {
-        guestOnly: true,
-      },
-    },
-    {
-      path: '/user/register',
-      name: 'userRegister',
-      component: () => import('@/views/user/RegisterView.vue'),
-      meta: {
-        guestOnly: true,
-      },
-    },
-    {
-      path: '/user/forgot-password',
-      name: 'userForgotPassword',
-      component: () => import('@/views/user/ForgotPasswordView.vue'),
-      meta: {
-        guestOnly: true,
-      },
-    },
-    {
-      path: '/user/email-verification',
-      name: 'userEmailVerification',
-      component: () => import('@/views/user/EmailVerificationView.vue'),
-    },
-    {
-      path: '/user/oauth/callback',
-      name: 'userOAuthCallback',
-      component: () => import('@/views/user/OAuthCallbackView.vue'),
-      meta: {
-        guestOnly: true,
-      },
-    },
-    {
-      path: '/user',
-      component: () => import('@/views/user/UserLayout.vue'),
-      meta: {
-        requiresAuth: true,
-      },
-      children: [
-        {
-          path: 'account',
-          name: 'userAccount',
-          component: () => import('@/views/user/AccountView.vue'),
-        },
-        {
-          path: '',
-          redirect: '/user/account',
-        },
-      ],
-    },
+    // Auth/account routes intentionally removed — nexis is a no-backend SPA.
+    // Any /user/* (or other) URL falls through to the catch-all and redirects home.
     {
       path: '/:pathMatch(.*)*',
       name: 'notFound',

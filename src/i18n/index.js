@@ -3,7 +3,7 @@ import { createI18n } from 'vue-i18n'
 
 export default createI18n({
   legacy: false, // must set to `false` to use Composition API
-  locale: import.meta.env.VITE_DEFAULT_LOCALE || 'en',
-  fallbackLocale: import.meta.env.VITE_DEFAULT_LOCALE || 'en',
+  locale: import.meta.env.VITE_DEFAULT_LOCALE || 'tw',
+  fallbackLocale: import.meta.env.VITE_DEFAULT_LOCALE || 'tw',
   messages,
 })

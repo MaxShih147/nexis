@@ -3,11 +3,11 @@ import { nextTick } from 'vue'
 
 const Trans = {
   get defaultLocale() {
-    return import.meta.env.VITE_DEFAULT_LOCALE || 'en'
+    return import.meta.env.VITE_DEFAULT_LOCALE || 'tw'
   },
 
   get supportedLocales() {
-    return import.meta.env.VITE_SUPPORTED_LOCALES.split(',')
+    return (import.meta.env.VITE_SUPPORTED_LOCALES || 'tw,cn,en,jp').split(',')
   },
 
   get currentLocale() {

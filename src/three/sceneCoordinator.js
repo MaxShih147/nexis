@@ -706,9 +706,23 @@ export function createSceneCoordinator(container) {
     const halfW = w / 2
     const halfD = d / 2
 
-    // Each edge 10..200 cm (non-uniform → boxes like equipment/shelves),
-    // so the longest dimension always stays within [10, 200] cm.
-    const rnd = () => 10 + Math.random() * 190
+    // Skewed size distribution — small objects dominate (more realistic):
+    //   70% smallest (longest edge ≤ 40 cm)
+    //   15%          (≤ 80 cm)
+    //   10%          (≤ 130 cm)
+    //    5% largest  (≤ 200 cm)
+    // Per object pick a max-edge class, then vary each edge within [10, max] cm
+    // so boxes stay non-uniform (equipment/shelves) rather than cubes.
+    const pickMaxEdge = () => {
+      const r = Math.random()
+      if (r < 0.70)
+        return 40
+      if (r < 0.85)
+        return 80
+      if (r < 0.95)
+        return 130
+      return 200
+    }
     // Suppress per-object renders during the batch (each is a full-scene draw
     // that grows with the scene → ~O(n²)); render once at the end.
     const realRender = meshManager.render
@@ -716,9 +730,11 @@ export function createSceneCoordinator(container) {
     undoManager.beginTransaction('Scatter objects')
     try {
       for (let i = 0; i < count; i++) {
-        const width = rnd()
-        const height = rnd()
-        const depth = rnd()
+        const maxEdge = pickMaxEdge()
+        const edge = () => 10 + Math.random() * (maxEdge - 10)
+        const width = edge()
+        const height = edge()
+        const depth = edge()
         const mesh = meshManager.addShape('Box', { width, height, depth })
         if (!mesh)
           continue

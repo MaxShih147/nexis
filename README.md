@@ -19,7 +19,7 @@
 | **安全間隙 ε** | 全域門檻 + 逐物件覆寫；間距 < ε 標為「接近」並畫最近點連線 |
 | **三維** | 部分物件懸空於隨機高度，呈現立體干涉而非平面 |
 | **建築** | 程序化生成半透明牆、門洞與結構柱網（可調參數） |
-| **規模化** | R-tree 寬相位 + BVH 窄相位，數千物件仍可即時偵測 |
+| **規模化** | R-tree broad phase + BVH narrow phase，數千物件仍可即時偵測 |
 | **編輯** | 單一模型選取 + 變換（移動／旋轉／平移／縮放）、Undo/Redo、多選刪除、匯入 STL/OBJ |
 | **面板** | 浮動可拖曳碰撞面板，分類過濾 + 虛擬捲動清單 |
 
@@ -39,7 +39,7 @@
 
 ![100 物件干涉偵測](screenshots/scatter.png)
 
-「物件（測試）」面板設定數量後按 **隨機生成物件**，模擬系統自動佈點（上圖為 100 個）。引擎以**兩階段**偵測：R-tree 寬相位用 XY footprint 找出空間鄰近候選，BVH 窄相位再做三角級精確判定，數千物件仍能即時運行。左上浮動面板即時列出每一對干涉（紅）／接近（黃），並可用分類過濾：**全部 / 干涉 / 接近 / 與建築 / 懸空物件**。每一項都附**位置（Location）**與**量級（Magnitude）**。
+「物件（測試）」面板設定數量後按 **隨機生成物件**，模擬系統自動佈點（上圖為 100 個）。引擎以**兩階段**偵測：R-tree broad phase 用 XY footprint 找出空間鄰近候選，BVH narrow phase 再做三角級精確判定，數千物件仍能即時運行。左上浮動面板即時列出每一對干涉（紅）／接近（黃），並可用分類過濾：**全部 / 干涉 / 接近 / 與建築 / 懸空物件**。每一項都附**位置（Location）**與**量級（Magnitude）**。
 
 ### 安全間隙 ε 與接近偵測
 
@@ -85,9 +85,9 @@
 
 - **Vue 3 + Vite 6**、Pinia、Vue Router（hash 路由）
 - **Three.js** — 場景 / 相機 / 控制 / 渲染（`src/three`）
-- **three-mesh-bvh** — BVH 加速的窄相位（`intersectsGeometry`、`closestPointToGeometry`）
+- **three-mesh-bvh** — BVH 加速的 narrow phase（`intersectsGeometry`、`closestPointToGeometry`）
 - **three-bvh-csg** — 精確交集體積（`computeMeshVolume`）
-- **rbush** — R-tree 寬相位（XY footprint）
+- **rbush** — R-tree broad phase（XY footprint）
 - **PrimeVue 4 + Tailwind CSS** — UI
 - 測試：**Vitest**（單元）、**Cypress**（e2e／煙霧測試／截圖）
 
@@ -97,8 +97,8 @@
 
 兩階段，依情境權衡速度與精度：
 
-1. **寬相位（broad phase）**：所有可碰撞物（物件、建築部件）的世界 AABB 投影到 XY 平面，用 R-tree 找出空間鄰近的候選配對，避免 O(n²) 兩兩比對。
-2. **窄相位（narrow phase）**：對候選配對做三角級精確判定。
+1. **Broad phase**：所有可碰撞物（物件、建築部件）的世界 AABB 投影到 XY 平面，用 R-tree 找出空間鄰近的候選配對，避免 O(n²) 兩兩比對。
+2. **Narrow phase**：對候選配對做三角級精確判定。
    - 相交：`intersectsGeometry()`（BVH，三角對三角）。
    - 接近（ε > 0）：`closestPointToGeometry()` 算最小間距與最近兩點。
    - 精確體積：以 `Brush + Evaluator(INTERSECTION)` 取交集網格 → `computeMeshVolume()`（按需，點選時才算）。
@@ -109,9 +109,9 @@
 |---|---|---|
 | 高頻拖曳 | 增量重算——只重測被移動的物件對其他物件/建築 | 最小化每幀成本 |
 | 高精度間隙 | `closestPointToGeometry` 最小距離 + 按需 CSG 精確體積 | 精度優先，計算集中在單一配對 |
-| 大規模靜態 | R-tree 寬相位 + 共用高亮材質 + 結果上限 | 近線性、避免記憶體爆量 |
+| 大規模靜態 | R-tree broad phase + 共用高亮材質 + 結果上限 | 近線性、避免記憶體爆量 |
 
-所有可碰撞物共用同一個「collidable」抽象（`{ geometry, matrixWorld }`），因此**程序生成的方塊、匯入的網格、建築部件可彼此互測**——窄相位只看幾何與變換矩陣，與物件來源無關。
+所有可碰撞物共用同一個「collidable」抽象（`{ geometry, matrixWorld }`），因此**程序生成的方塊、匯入的網格、建築部件可彼此互測**——narrow phase 只看幾何與變換矩陣，與物件來源無關。
 
 更深入的設計見 [`ARCHITECTURE.md`](ARCHITECTURE.md)。
 

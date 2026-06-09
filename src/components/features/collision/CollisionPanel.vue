@@ -3,7 +3,7 @@ import { useCollisionStore } from '@/stores/collision'
 import { storeToRefs } from 'pinia'
 import { computed, inject, ref } from 'vue'
 
-// nexis digital-twin collision detection (Problem 1) — live results list.
+// nexis digital-twin collision detection — live results list.
 // Detection runs automatically (on add/move/building changes); the global
 // safety gap ε lives in the right sidebar. Built to scale: filter chips + a
 // virtual-scrolled list so thousands of findings stay responsive.

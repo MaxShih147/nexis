@@ -53,3 +53,9 @@ test-models/
 .agents/
 openspec/
 .codex/
+
+# nexis: never commit PDFs (assignment/spec docs)
+*.pdf
+
+# nexis: legacy DS-Online/Phrozen docs kept local, not published
+docs/

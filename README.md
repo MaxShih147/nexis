@@ -1,97 +1,99 @@
-# DS‑Online
+# nexis
 
-Browser‑based dental 3D slicer.
+大範圍數位孿生場域的**碰撞／干涉檢測**前端。在瀏覽器中以三角網格（Mesh）表示廠房建築與設備物件，即時偵測物件之間、以及物件與建築之間的干涉，並標示**位置（Location）**與**量化大小（Magnitude）**，協助佈局設計在套用到真實場域前先驗證。
 
-## Tech Stack
+純前端 SPA，無後端、可直接部署為靜態網站。
 
-- Vue 3 + Vite 6, Vue Router, Pinia
-- Three.js (`src/three`) with managers for selection, mesh, slicing, supports, hollowing
-- PrimeVue + Tailwind CSS for UI
-- Web workers + WASM (`src/workers`, `src/three/wasm/**`) for slicing
-- Axios clients for API and UDP print service integration
+---
 
-## Getting Started
+## 功能
 
-1) Install dependencies
+- **即時干涉偵測**：拖曳／擺放物件時即時更新，標示干涉（紅）與接近（黃）。
+- **物件 vs 物件、物件 vs 建築**：建築的牆與結構柱也是碰撞對象。
+- **安全間隙 ε**：全域門檻 + 可逐物件覆寫；間距小於 ε 的配對標為「接近」，並畫出最近點連線。
+- **量化大小**：
+  - 預設用 AABB 重疊體積做快速近似。
+  - 點選干涉項可用 **CSG 布林交集**算出**真實交集體積**（精確），並把交集區域畫在場景中（精準的 Location）。匯入的 STL/OBJ 模型也支援。
+- **三維偵測**：少部分散布物件會**懸空**於隨機高度（頂部不超過牆高），呈現立體而非平面的干涉。
+- **程序化建築生成**：依參數（隔間數、牆高、柱邊長、門寬/門高、隔間面積、最小柱距）生成半透明的牆、門洞與結構柱網。
+- **規模化**：R-tree 寬相位 + BVH 窄相位，數千物件仍可即時偵測（結果上限保護）。
+- **結果面板**：浮動、可拖曳；分類過濾（全部／干涉／接近／與建築／懸空物件）+ 虛擬捲動清單。
+- **單位**：公分（cm）。
 
-```sh
-npm install
-```
+---
 
-2) Set environment variables (optional for local dev)
+## 技術棧
 
-Create a `.env.local` with values as needed:
+- **Vue 3 + Vite 6**、Pinia、Vue Router（hash 路由）
+- **Three.js** — 場景 / 相機 / 控制 / 渲染（`src/three`）
+- **three-mesh-bvh** — BVH 加速的窄相位（`intersectsGeometry`、`closestPointToGeometry`）
+- **three-bvh-csg** — 精確交集體積（`computeMeshVolume`）
+- **rbush** — R-tree 寬相位（XY footprint）
+- **PrimeVue 4 + Tailwind CSS** — UI
+- 測試：**Vitest**（單元）、**Cypress**（e2e／煙霧測試／截圖）
 
-```ini
-# DB-backed API origin.
-# Auth/account endpoints are called as /v1/... from this origin.
-VITE_DB_API_ORIGIN=http://localhost:3000
+---
 
-# Slicer backend origin.
-# Slicing calls append /api/v2/... or /api/jobs/... to this origin.
-VITE_SLICER_API_ORIGIN=http://127.0.0.1:5179
+## 碰撞檢測架構
 
-# Legacy slicing v2 client base.
-# Only needed by src/axios/sliceApis.js.
-VITE_SLICER_V2_API_BASE_URL=http://127.0.0.1:5179/api/v2
+兩階段，依情境權衡速度與精度：
 
-# UDP printer service base used by the dashboard (see Print Service below)
-VITE_UDP_API_BASE_URL=http://localhost:5180/api/v1/printers
+1. **寬相位（broad phase）**：所有可碰撞物（物件、建築部件）的世界 AABB 投影到 XY 平面，用 R-tree 找出空間鄰近的候選配對，避免 O(n²) 兩兩比對。
+2. **窄相位（narrow phase）**：對候選配對做三角級精確判定。
+   - 相交：`intersectsGeometry()`（BVH，三角對三角）。
+   - 接近（ε > 0）：`closestPointToGeometry()` 算最小間距與最近兩點。
+   - 精確體積：以 `Brush + Evaluator(INTERSECTION)` 取交集網格 → `computeMeshVolume()`（按需，點選時才算）。
 
-# Default UI locale code (en|jp|tw|cn)
-VITE_DEFAULT_LOCALE=en
-```
+不同使用情境對應不同策略：
 
-3) Run the app (with cross‑origin isolation headers enabled for WASM)
+| 情境 | 方法 | 重點 |
+|---|---|---|
+| 高頻拖曳 | 增量重算——只重測被移動的物件對其他物件/建築 | 最小化每幀成本 |
+| 高精度間隙 | `closestPointToGeometry` 最小距離 + 按需 CSG 精確體積 | 精度優先，計算集中在單一配對 |
+| 大規模靜態 | R-tree 寬相位 + 共用高亮材質 + 結果上限 | 近線性、避免記憶體爆量 |
 
-```sh
-npm run dev
-```
+所有可碰撞物共用同一個「collidable」抽象（`{ geometry, matrixWorld }`），因此**程序生成的方塊、匯入的網格、建築部件可彼此互測**——窄相位只看幾何與變換矩陣，與物件來源無關。
 
-Vite dev server is configured to send COOP/COEP headers required for certain WASM/worker features. Visit the printed URL (typically `http://localhost:5173`).
+---
 
-## Build & Preview
-
-```sh
-npm run build
-npm run preview
-```
-
-If you deploy behind your own server, ensure COOP/COEP headers are set so SharedArrayBuffer/WebAssembly features work:
-
-```
-Cross-Origin-Opener-Policy: same-origin
-Cross-Origin-Embedder-Policy: require-corp
-```
-
-Example (Nginx):
-
-```
-add_header Cross-Origin-Opener-Policy same-origin always;
-add_header Cross-Origin-Embedder-Policy require-corp always;
-```
-
-## Testing & Linting
-
-- Unit tests (Vitest):
+## 快速開始
 
 ```sh
-npm run test:unit
+npm install      # 安裝依賴（含 three-mesh-bvh / three-bvh-csg / rbush）
+npm run dev      # 開發伺服器
+npm run build    # 產出靜態檔到 dist/
+npm run preview  # 預覽 build 結果
 ```
 
-- E2E (Cypress):
+### 測試
 
 ```sh
-# Fast dev mode
-npm run test:e2e:dev
-
-# Against production preview
-npm run build
-npm run test:e2e
+npm run test:unit          # Vitest 單元測試
+npx cypress run --e2e      # Cypress e2e（需 dev 伺服器在執行）
 ```
 
-- Lint (ESLint):
+---
 
-```sh
-npm run lint
-```
+## 操作
+
+- **產生建築**：右側「建築」面板設定參數後按「產生建築」。
+- **散布物件**：右側「物件（測試）」設定數量後「隨機生成物件」（模擬系統自動佈點）；「清空物件」清除。
+- **安全間隙**：右側設全域 ε；個別物件可在左側清單的齒輪鈕覆寫。
+- **碰撞面板**：浮動面板即時列出干涉/接近；用上方分類過濾；**點選干涉項**計算該對的精確交集體積並高亮交集區域。
+- **刪除**：選取物件後按 `Delete`／`Backspace`（多選會一起刪）。
+- **復原 / 重做**：`Cmd/Ctrl + Z`、`Cmd/Ctrl + Shift + Z`。
+
+---
+
+## 部署
+
+- 純前端、**無後端**；`npm run build` 後將 `dist/` 丟到任何靜態主機即可。
+- 使用 **hash 路由**，免伺服器 rewrite 規則。
+- **不要**啟用 COEP/CORP 標頭（會阻擋外部 CDN 貼圖）；若需完全離線，把 matcap 貼圖自行放進 `public/`。
+- Vercel：framework 選 Vite、build 指令 `npm run build`、output 目錄 `dist`。
+
+---
+
+## 作者
+
+Max Shih — [github.com/MaxShih147](https://github.com/MaxShih147)

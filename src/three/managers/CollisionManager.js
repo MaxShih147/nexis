@@ -21,7 +21,7 @@ function csgReadyGeometry(geo) {
 const MAX_RESULTS = 4000
 
 /**
- * CollisionManager — nexis digital-twin interference detection (Problem 1).
+ * CollisionManager — nexis digital-twin interference detection.
  *
  * Phase 0/1 (single fixed floor) — "did it collide?":
  *  - Broad phase: world-space AABB overlap → candidate pairs.
@@ -437,7 +437,7 @@ export class CollisionManager {
   /**
    * Live incremental check, throttled to one per animation frame. Always on:
    * called from the scene's drag/transform handlers so interference updates as
-   * a movable object is moved (Problem 1, goal 2).
+   * a movable object is moved.
    */
   requestRealtimeCheck(uuid) {
     if (this._rafPending)

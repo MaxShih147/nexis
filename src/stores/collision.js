@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 
 /**
- * Collision-detection state (nexis digital-twin, Problem 1).
+ * Collision-detection state (nexis digital-twin).
  *
  * Phase 0/1 scope: a single fixed floor. Results are produced by the
  * three-layer CollisionManager and pushed here for the UI to render.

@@ -92,7 +92,7 @@ export function createSceneCoordinator(container) {
     return parts
   }
 
-  // Collision detection (digital-twin interference, Problem 1)
+  // Collision detection (digital-twin interference)
   const collisionManager = new CollisionManager({
     getModels: meshManager.getModels.bind(meshManager),
     getBuildingParts,
@@ -979,7 +979,7 @@ export function createSceneCoordinator(container) {
     setSceneColor,
     addShape: undoAddShape,
     scatterRandomObjects,
-    // Collision detection (Problem 1)
+    // Collision detection
     checkCollisions: collisionManager.checkAll.bind(collisionManager),
     checkCollisionsFor: collisionManager.checkFor.bind(collisionManager),
     setCollisionTolerance: (value) => {

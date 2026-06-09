@@ -65,7 +65,7 @@ onBeforeUnmount(() => {
 
 <template>
   <div
-    class="fixed z-40 w-80 select-none rounded-lg border border-zinc-200/10 bg-white/85 shadow-xl backdrop-blur dark:bg-zinc-900/85"
+    class="fixed z-40 w-96 select-none rounded-lg border border-zinc-200/10 bg-white/85 shadow-xl backdrop-blur dark:bg-zinc-900/85"
     :style="{ left: `${pos.x}px`, top: `${pos.y}px` }"
   >
     <!-- drag handle -->

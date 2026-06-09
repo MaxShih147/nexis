@@ -132,20 +132,25 @@ const {
 })
 
 function handleDeleteKey(event) {
-  const isDeleteKey = event.key === 'Delete'
-  const isMacDeleteShortcut = isMacOS && event.key === 'Backspace' && event.metaKey
-
-  if (!isDeleteKey && !isMacDeleteShortcut)
+  const isDeleteKey = event.key === 'Delete' || event.key === 'Backspace'
+  if (!isDeleteKey)
     return
 
-  if (!modelStore.selectedModel?.uuid)
+  // Don't hijack Backspace/Delete while typing in a field.
+  const tag = document.activeElement?.tagName
+  if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT')
     return
 
+  // Delete the whole current selection (multi-select), snapshot first since
+  // removing mutates the selection set.
+  const uuids = [...(modelStore.selectedUuids || [])]
+  if (uuids.length === 0)
+    return
+
+  event.preventDefault()
   try {
-    if (isMacDeleteShortcut)
-      event.preventDefault()
-
-    three.value.removeModel(modelStore.selectedModel.uuid)
+    for (const uuid of uuids)
+      three.value.removeModel(uuid)
   }
   catch (error) {
     logger.error(error)

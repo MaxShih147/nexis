@@ -142,7 +142,11 @@ export function createSceneCoordinator(container) {
   const workerPool = new WorkerPool(2)
   const snapshotStore = new IndexedDBSnapshotStore()
   const snapshotService = new GeometrySnapshotService(workerPool, snapshotStore)
-  const undoManager = new UndoManager({ snapshotService })
+  const undoManager = new UndoManager({
+    snapshotService,
+    // Re-run interference detection after undo/redo so the panel stays in sync.
+    onAfterUndoRedo: () => collisionManager.requestRealtimeCheck(null),
+  })
 
   // Helpers used by commands to sync store & render
   const _syncStore = () => modelStore.syncSelectedModel()
@@ -706,6 +710,13 @@ export function createSceneCoordinator(container) {
    * @param {number} count
    */
   function scatterRandomObjects(count = 20) {
+    // Cap total objects on the board at 1000.
+    const MAX_TOTAL = 1000
+    const room = Math.max(0, MAX_TOTAL - meshManager.getModels().length)
+    count = Math.min(Math.max(0, count | 0), room)
+    if (count <= 0)
+      return
+
     const w = plane.size?.x || 300
     const d = plane.size?.y || 300
     const halfW = w / 2
@@ -734,8 +745,12 @@ export function createSceneCoordinator(container) {
       return palette[idx % palette.length]
     }
 
+    // Ceiling = wall height of the current building (floating objects must keep
+    // their top below it); default if no building.
+    const ceiling = _building?.userData?.params?.wallHeight || 260
+
     let placed = 0
-    const addBox = (bw, bh, bd, x, y, material) => {
+    const addBox = (bw, bh, bd, x, y, material, z) => {
       // Name objects 物件-1, 物件-2, … per batch; the store disambiguates
       // duplicates across batches as 物件-1#1, 物件-1#2, …
       const mesh = meshManager.addShape('Box', { width: bw, height: bh, depth: bd }, `物件-${placed + 1}`)
@@ -743,9 +758,19 @@ export function createSceneCoordinator(container) {
         return
       if (material)
         mesh.material = material
-      meshManager.updatePosition({ x, y, z: mesh.position.z }, mesh)
+      if (z != null)
+        mesh.userData.floating = true // 3D: object floats above the floor
+      meshManager.updatePosition({ x, y, z: z != null ? z : mesh.position.z }, mesh)
       undoManager.push(createAddModelCommand(mesh, meshManager, render))
       placed++
+    }
+
+    // A floating z for a box of vertical extent `bd`, kept above the floor and
+    // below the ceiling; null if it can't fit (→ placed on the floor).
+    const floatZ = (bd) => {
+      const minZ = bd / 2 + 30 // bottom ≥ 30 cm off the floor
+      const maxZ = ceiling - bd / 2 // top ≤ ceiling
+      return maxZ > minZ ? minZ + Math.random() * (maxZ - minZ) : null
     }
 
     // Suppress per-object renders during the batch (each is a full-scene draw
@@ -788,7 +813,8 @@ export function createSceneCoordinator(container) {
         }
       }
 
-      // ── The rest: random placement (skewed sizes), overlaps intentional ──
+      // ── The rest: random placement (skewed sizes), overlaps intentional.
+      //    A small fraction (~15%) float at a random height (3D interference). ──
       while (placed < count) {
         const maxEdge = pickMaxEdge()
         const edge = () => 10 + Math.random() * (maxEdge - 10)
@@ -797,7 +823,8 @@ export function createSceneCoordinator(container) {
         const bd = edge()
         const x = (Math.random() * 2 - 1) * Math.max(0, halfW - bw / 2)
         const y = (Math.random() * 2 - 1) * Math.max(0, halfD - bh / 2)
-        addBox(bw, bh, bd, x, y, matFor(maxEdge))
+        const z = Math.random() < 0.15 ? floatZ(bd) : null
+        addBox(bw, bh, bd, x, y, matFor(maxEdge), z)
       }
     }
     finally {

@@ -23,7 +23,7 @@ function clearAll() {
       <InputNumber
         v-model="count"
         :min="1"
-        :max="5000"
+        :max="1000"
         :step="10"
         :max-fraction-digits="0"
         size="small"

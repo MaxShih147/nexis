@@ -34,12 +34,15 @@ const sortedResults = computed(() =>
 )
 
 const buildingCount = computed(() => results.value.filter(r => r.kind === 'building').length)
+const floatingCount = computed(() => results.value.filter(r => r.floating).length)
 
 const filteredResults = computed(() => {
   if (filter.value === 'all')
     return sortedResults.value
   if (filter.value === 'building')
     return sortedResults.value.filter(r => r.kind === 'building') // intersect + near
+  if (filter.value === 'floating')
+    return sortedResults.value.filter(r => r.floating)
   return sortedResults.value.filter(r => r.status === filter.value)
 })
 
@@ -63,6 +66,7 @@ const chips = computed(() => [
   { key: 'intersect', label: '干涉', count: intersectCount.value, active: 'bg-red-500/20 text-red-300' },
   { key: 'near', label: '接近', count: nearCount.value, active: 'bg-amber-500/20 text-amber-300' },
   { key: 'building', label: '與建築', count: buildingCount.value, active: 'bg-sky-500/20 text-sky-300' },
+  { key: 'floating', label: '懸空物件', count: floatingCount.value, active: 'bg-violet-500/20 text-violet-300' },
 ])
 
 // Exact CSG intersection volume per pair, computed on demand (clicking a row).
@@ -108,12 +112,12 @@ function fmtLoc(loc) {
 
     <template v-if="hasCollisions">
       <!-- filter chips -->
-      <div class="flex items-center gap-1.5">
+      <div class="flex flex-nowrap items-center gap-1.5 overflow-x-auto no-scrollbar">
         <button
           v-for="c in chips"
           :key="c.key"
           type="button"
-          class="rounded-full px-2 py-0.5 text-[11px] transition-colors"
+          class="shrink-0 whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] transition-colors"
           :class="filter === c.key ? c.active : 'text-zinc-400 hover:text-zinc-200'"
           @click="filter = c.key"
         >

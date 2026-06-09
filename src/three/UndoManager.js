@@ -18,7 +18,7 @@ export class UndoManager {
    * @param {number} [opts.maxSteps]  default 50
    * @param {number} [opts.mergeWindow]  ms window for command merging, default 300
    */
-  constructor({ snapshotService = null, maxSteps = 50, mergeWindow = 300 } = {}) {
+  constructor({ snapshotService = null, maxSteps = 50, mergeWindow = 300, onAfterUndoRedo = null } = {}) {
     this._undoStack = []
     this._redoStack = []
     this._isExecuting = false
@@ -27,6 +27,8 @@ export class UndoManager {
     this._mergeWindow = mergeWindow
     this._snapshotService = snapshotService
     this._gcTimer = null
+    // Called after an undo or redo completes (e.g. to re-run collision detection).
+    this._onAfterUndoRedo = onAfterUndoRedo
 
     // Transaction state
     this._transaction = null // { label, commands[] }
@@ -105,6 +107,7 @@ export class UndoManager {
       }
       this._redoStack.push(cmd)
     })
+    this._onAfterUndoRedo?.()
   }
 
   /**
@@ -124,6 +127,7 @@ export class UndoManager {
       }
       this._undoStack.push(cmd)
     })
+    this._onAfterUndoRedo?.()
   }
 
   /**

@@ -9,7 +9,6 @@ import { Noir } from './assets/themePreset'
 import i18n from './i18n'
 import Trans from './i18n/translation'
 import router from './router'
-import { useAuthStore } from './stores/useAuthStore'
 import './assets/main.css'
 
 async function bootstrap() {
@@ -42,9 +41,6 @@ async function bootstrap() {
   app.use(DialogService)
   app.use(ToastService)
   app.directive('tooltip', Tooltip)
-
-  const authStore = useAuthStore(pinia)
-  authStore.initialize()
 
   app.mount('#app')
 }

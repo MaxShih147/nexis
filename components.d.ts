@@ -44,7 +44,6 @@ declare module 'vue' {
     Tree: typeof import('primevue/tree')['default']
     UdpServerDialog: typeof import('./src/components/features/add_printers/UdpServerDialog.vue')['default']
     UploadBtn: typeof import('./src/components/features/file_loading/UploadBtn.vue')['default']
-    UserSidebarShell: typeof import('./src/components/layout/UserSidebarShell.vue')['default']
     VDivider: typeof import('./src/components/UI/VDivider.vue')['default']
     VirtualScroller: typeof import('primevue/virtualscroller')['default']
   }

@@ -17,6 +17,5 @@ export const allowedScriptValuesByFile = {
   'src/three/managers/AxisHelper.js': ['Back', 'Front'],
   'src/three/project/saveProjectFile.js': ['3MF Project File'],
   'src/three/project/__tests__/ProjectManager.test.js': ['3MF Project File'],
-  'src/views/user/OAuthCallbackView.vue': ['loading', 'success', 'error'],
   'src/stores/__tests__/printers.spec.js': ['boom'],
 }

@@ -1,4 +1,3 @@
-import { useAuthStore } from '@/stores/useAuthStore'
 import { createRouter, createWebHashHistory } from 'vue-router'
 import HomeView from '../views/HomeView.vue'
 
@@ -19,24 +18,5 @@ const router = createRouter({
     },
   ],
 })
-
-export function authNavigationGuard(to) {
-  const authStore = useAuthStore()
-  authStore.syncFromStorage()
-
-  if (to.meta.requiresAuth && !authStore.isAuthenticated) {
-    return {
-      path: '/user/login',
-      query: {
-        redirect: to.fullPath,
-      },
-    }
-  }
-
-  if (to.meta.guestOnly && authStore.isAuthenticated)
-    return '/user/dashboard'
-}
-
-router.beforeEach(authNavigationGuard)
 
 export default router

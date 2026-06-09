@@ -60,8 +60,18 @@ const chips = computed(() => [
   { key: 'near', label: '接近', count: nearCount.value, active: 'bg-amber-500/20 text-amber-300' },
 ])
 
+// Exact CSG intersection volume per pair, computed on demand (clicking a row).
+const exactByKey = ref({})
+const pairKey = pair => `${pair.aUuid}|${pair.bUuid}`
+
 function focusPair(pair) {
   three?.selectModelByUuid?.(pair.aUuid)
+  // True Magnitude: exact intersection volume + the intersection region overlay.
+  if (pair.status === 'intersect') {
+    const r = three?.computeExactMagnitude?.(pair.aUuid, pair.bUuid)
+    if (r)
+      exactByKey.value = { ...exactByKey.value, [pairKey(pair)]: r.volume }
+  }
 }
 
 function fmtNum(v, digits = 2) {
@@ -128,7 +138,9 @@ function fmtLoc(loc) {
                 class="shrink-0 text-[10px]"
                 :class="pair.status === 'intersect' ? 'text-red-300' : 'text-amber-300'"
               >
-                {{ pair.status === 'intersect' ? `體積 ${fmtNum(pair.magnitude)}` : `間隙 ${fmtNum(pair.gap)} cm` }}
+                <template v-if="pair.status !== 'intersect'">間隙 {{ fmtNum(pair.gap) }} cm</template>
+                <template v-else-if="exactByKey[pairKey(pair)] != null">體積 {{ fmtNum(exactByKey[pairKey(pair)]) }} (精確)</template>
+                <template v-else>體積 {{ fmtNum(pair.magnitude) }} (近似)</template>
               </span>
             </div>
             <div class="text-[10px] text-zinc-500">位置 {{ fmtLoc(pair.location) }}</div>

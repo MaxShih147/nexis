@@ -967,6 +967,7 @@ export function createSceneCoordinator(container) {
     },
     clearCollisions: collisionManager.clear.bind(collisionManager),
     getCollisionResults: () => collisionManager.results,
+    computeExactMagnitude: collisionManager.computeExactVolume.bind(collisionManager),
     // Building shell (procedural walls + columns)
     generateBuilding: regenerateBuilding,
     clearBuilding,

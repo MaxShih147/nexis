@@ -1,5 +1,6 @@
 import RBush from 'rbush'
-import { Box3, BufferGeometry, DoubleSide, Line, LineBasicMaterial, Matrix4, MeshBasicMaterial, MeshMatcapMaterial, Vector3 } from 'three'
+import { Box3, BufferGeometry, DoubleSide, Line, LineBasicMaterial, Matrix4, Mesh, MeshBasicMaterial, MeshMatcapMaterial, Vector3 } from 'three'
+import { Brush, computeMeshVolume, Evaluator, INTERSECTION } from 'three-bvh-csg'
 
 // Cap stored interference pairs so pathologically dense scenes (e.g. thousands
 // of overlapping objects) don't blow up memory / the results list.
@@ -77,6 +78,77 @@ export class CollisionManager {
 
     // Closest-point gap lines currently in the scene (Phase 2 overlay)
     this._overlay = []
+    // On-demand exact CSG intersection (true Magnitude) + its visual region.
+    this._evaluator = new Evaluator()
+    this._volumeOverlay = null
+  }
+
+  _findPart(uuid) {
+    return this.getModels().find(m => m.uuid === uuid)
+      || this.getBuildingParts().find(m => m.uuid === uuid)
+      || null
+  }
+
+  _toBrush(mesh) {
+    mesh.updateMatrixWorld?.(true)
+    const brush = new Brush(mesh.geometry)
+    brush.matrix.copy(mesh.matrixWorld)
+    brush.matrix.decompose(brush.position, brush.quaternion, brush.scale)
+    brush.updateMatrixWorld(true)
+    return brush
+  }
+
+  /**
+   * Exact interference Magnitude for one pair via CSG: the boolean INTERSECTION
+   * of the two meshes → its true volume, plus the intersection region rendered
+   * as an overlay (the precise Location). Heavy, so call on demand (e.g. a
+   * clicked result), not for every pair.
+   * @returns {{ volume:number, location:{x,y,z} } | null}
+   */
+  computeExactVolume(aUuid, bUuid) {
+    const a = this._findPart(aUuid)
+    const b = this._findPart(bUuid)
+    if (!a?.geometry || !b?.geometry)
+      return null
+
+    let result
+    try {
+      result = this._evaluator.evaluate(this._toBrush(a), this._toBrush(b), INTERSECTION)
+    }
+    catch {
+      return null
+    }
+    if (!result?.geometry)
+      return null
+
+    const volume = Math.abs(computeMeshVolume(result))
+    result.geometry.computeBoundingBox()
+    const center = result.geometry.boundingBox.getCenter(new Vector3())
+
+    this._showVolumeOverlay(result.geometry)
+    return { volume, location: { x: center.x, y: center.y, z: center.z } }
+  }
+
+  _showVolumeOverlay(geometry) {
+    this._clearVolumeOverlay()
+    if (!this.scene)
+      return
+    const mat = new MeshBasicMaterial({ color: 0xE879F9, transparent: true, opacity: 0.6, depthWrite: false, side: DoubleSide })
+    const mesh = new Mesh(geometry, mat)
+    mesh.name = 'intersectionVolume'
+    mesh.renderOrder = 1000
+    this.scene.add(mesh)
+    this._volumeOverlay = mesh
+    this.render()
+  }
+
+  _clearVolumeOverlay() {
+    if (!this._volumeOverlay)
+      return
+    this.scene?.remove(this._volumeOverlay)
+    this._volumeOverlay.geometry?.dispose?.()
+    this._volumeOverlay.material?.dispose?.()
+    this._volumeOverlay = null
   }
 
   /** World-space AABB of a model (updates its world matrix first). */
@@ -389,6 +461,7 @@ export class CollisionManager {
 
     this._applyHighlight(colorByUuid)
     this._rebuildOverlay(results)
+    this._clearVolumeOverlay() // results changed → drop any stale exact-volume region
     this.onResults(results)
     this.render()
   }
@@ -454,6 +527,7 @@ export class CollisionManager {
   dispose() {
     this._applyHighlight(new Map())
     this._rebuildOverlay([])
+    this._clearVolumeOverlay()
     this.results = []
   }
 }

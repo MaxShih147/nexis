@@ -33,9 +33,13 @@ const sortedResults = computed(() =>
   }),
 )
 
+const buildingCount = computed(() => results.value.filter(r => r.kind === 'building').length)
+
 const filteredResults = computed(() => {
   if (filter.value === 'all')
     return sortedResults.value
+  if (filter.value === 'building')
+    return sortedResults.value.filter(r => r.kind === 'building') // intersect + near
   return sortedResults.value.filter(r => r.status === filter.value)
 })
 
@@ -58,6 +62,7 @@ const chips = computed(() => [
   { key: 'all', label: '全部', count: results.value.length, active: 'bg-zinc-200/15 text-zinc-100' },
   { key: 'intersect', label: '干涉', count: intersectCount.value, active: 'bg-red-500/20 text-red-300' },
   { key: 'near', label: '接近', count: nearCount.value, active: 'bg-amber-500/20 text-amber-300' },
+  { key: 'building', label: '與建築', count: buildingCount.value, active: 'bg-sky-500/20 text-sky-300' },
 ])
 
 // Exact CSG intersection volume per pair, computed on demand (clicking a row).

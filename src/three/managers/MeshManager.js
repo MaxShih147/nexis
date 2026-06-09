@@ -11,7 +11,7 @@ import { BackSide, Box3, BoxGeometry, BufferGeometry, CapsuleGeometry, ConeGeome
 import { STLExporter } from 'three/examples/jsm/exporters/STLExporter'
 import { STLLoader } from 'three/examples/jsm/loaders/STLLoader'
 import { loadModelByFileType, processMesh } from '../loaders'
-import { attachOutOfBoundsShader, createOobUniforms, updateBuildVolume } from '../outOfBoundsShader'
+import { createOobUniforms, updateBuildVolume } from '../outOfBoundsShader'
 import { packRects } from '../rectPacker'
 import { isSlicableChild } from './meshUtils'
 
@@ -188,10 +188,9 @@ export class MeshManager {
       matcap: frontMatcap,
     })
 
-    // Attach out-of-bounds shader to both materials with shared uniforms
+    // nexis: out-of-bounds (printer build-volume) red tint is not used in the
+    // digital twin — keep the uniforms for build-volume queries but don't tint.
     this._oobUniforms = createOobUniforms()
-    attachOutOfBoundsShader(this.frontMaterial, this._oobUniforms)
-    attachOutOfBoundsShader(this.backMaterial, this._oobUniforms)
   }
 
   /**

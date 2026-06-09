@@ -252,6 +252,10 @@ export class CollisionManager {
     return obj.name || 'model'
   }
 
+  _isBuilding(obj) {
+    return !!obj.userData?.buildingPart
+  }
+
   _intersectPair(a, b, boxA, boxB) {
     const info = this._overlapInfo(boxA, boxB)
     return {
@@ -259,6 +263,7 @@ export class CollisionManager {
       bUuid: b.uuid,
       aName: this._label(a),
       bName: this._label(b),
+      kind: this._isBuilding(a) || this._isBuilding(b) ? 'building' : 'object',
       status: 'intersect',
       magnitude: info.magnitude,
       gap: 0,
@@ -275,6 +280,7 @@ export class CollisionManager {
       bUuid: b.uuid,
       aName: this._label(a),
       bName: this._label(b),
+      kind: this._isBuilding(a) || this._isBuilding(b) ? 'building' : 'object',
       status: 'near',
       magnitude: 0,
       gap: closest.distance,

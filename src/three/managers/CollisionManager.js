@@ -1,6 +1,20 @@
 import RBush from 'rbush'
 import { Box3, BufferGeometry, DoubleSide, Line, LineBasicMaterial, Matrix4, Mesh, MeshBasicMaterial, MeshMatcapMaterial, Vector3 } from 'three'
+import { mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils'
 import { Brush, computeMeshVolume, Evaluator, INTERSECTION } from 'three-bvh-csg'
+
+/**
+ * Make a geometry safe for CSG boolean ops: keep only position and weld
+ * vertices by position so edges are shared (manifold). Imported STL/OBJ meshes
+ * are non-indexed with per-face normals, which boolean ops can't connect.
+ */
+function csgReadyGeometry(geo) {
+  const g = new BufferGeometry()
+  g.setAttribute('position', geo.getAttribute('position').clone())
+  if (geo.index)
+    g.setIndex(geo.index.clone())
+  return mergeVertices(g) // only position present → welds by position (shared edges)
+}
 
 // Cap stored interference pairs so pathologically dense scenes (e.g. thousands
 // of overlapping objects) don't blow up memory / the results list.
@@ -79,7 +93,11 @@ export class CollisionManager {
     // Closest-point gap lines currently in the scene (Phase 2 overlay)
     this._overlay = []
     // On-demand exact CSG intersection (true Magnitude) + its visual region.
+    // Only carry position through the boolean op — imported STL meshes have no
+    // uv (and we don't need uv/normal for a volume), and the default evaluator
+    // attributes (position/uv/normal) throw when an attribute is missing.
     this._evaluator = new Evaluator()
+    this._evaluator.attributes = ['position']
     this._volumeOverlay = null
   }
 
@@ -91,7 +109,13 @@ export class CollisionManager {
 
   _toBrush(mesh) {
     mesh.updateMatrixWorld?.(true)
-    const brush = new Brush(mesh.geometry)
+    // Cache a welded, CSG-ready copy per geometry (rebuild if it changes).
+    const ud = mesh.userData || (mesh.userData = {})
+    if (ud._csgGeoFor !== mesh.geometry.uuid) {
+      ud._csgGeo = csgReadyGeometry(mesh.geometry)
+      ud._csgGeoFor = mesh.geometry.uuid
+    }
+    const brush = new Brush(ud._csgGeo)
     brush.matrix.copy(mesh.matrixWorld)
     brush.matrix.decompose(brush.position, brush.quaternion, brush.scale)
     brush.updateMatrixWorld(true)
@@ -116,7 +140,7 @@ export class CollisionManager {
       result = this._evaluator.evaluate(this._toBrush(a), this._toBrush(b), INTERSECTION)
     }
     catch {
-      return null
+      return null // non-manifold / degenerate geometry → no exact volume
     }
     if (!result?.geometry)
       return null

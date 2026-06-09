@@ -1,5 +1,5 @@
 import { useProgressStore } from '@/stores/model'
-import { BackSide, FrontSide, Mesh, MeshMatcapMaterial, MeshPhysicalMaterial, TextureLoader } from 'three'
+import { DoubleSide, Mesh, MeshPhysicalMaterial } from 'three'
 import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader'
 import { STLLoader } from 'three/examples/jsm/loaders/STLLoader'
 
@@ -44,22 +44,13 @@ export async function loadModelByFileType(file, frontMaterial, backMaterial) {
  * @param {Material} backMaterial The back material to use
  * @returns {Mesh} The processed mesh object
  */
-export function processMesh(geometry, name, frontMaterial, backMaterial) {
-  // Use provided materials or create defaults if not provided.
-  // NOTE: only load the matcap texture when actually building a default back
-  // material — doing it unconditionally fired a CDN image fetch per mesh, which
-  // made adding many objects extremely slow.
-  const front = frontMaterial || new MeshPhysicalMaterial({ color: 0xFFFFFF, side: FrontSide, wireframe: false })
-  const back = backMaterial || new MeshMatcapMaterial({
-    color: 0xB070B8,
-    side: BackSide,
-    matcap: new TextureLoader().load('https://cdn.jsdelivr.net/gh/nidorx/matcaps@master/1024/626262_9E9E9E_848484_262626.png'),
-  })
+export function processMesh(geometry, name, frontMaterial) {
+  // Single double-sided mesh (the old back-face child doubled draw calls and
+  // its default material fetched a CDN matcap per mesh). DoubleSide avoids
+  // see-through on the now-removed back material.
+  const front = frontMaterial || new MeshPhysicalMaterial({ color: 0xFFFFFF, side: DoubleSide, wireframe: false })
 
   const mesh = new Mesh(geometry, front)
-  const backMesh = new Mesh(geometry, back)
-  backMesh.raycast = () => {}
-  mesh.add(backMesh)
   mesh.name = name
   mesh.dimensions = getDimensions(mesh.geometry)
   mesh.originalGeometry = mesh.geometry

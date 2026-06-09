@@ -8,7 +8,7 @@ import CollisionPanel from './CollisionPanel.vue'
 // locked into the narrow right sidebar.
 
 const collisionStore = useCollisionStore()
-const { intersectCount, nearCount, hasCollisions } = storeToRefs(collisionStore)
+const { intersectCount, nearCount, hasCollisions, capped } = storeToRefs(collisionStore)
 
 const statusText = computed(() => {
   if (!hasCollisions.value)
@@ -18,7 +18,7 @@ const statusText = computed(() => {
     parts.push(`${intersectCount.value} 干涉`)
   if (nearCount.value)
     parts.push(`${nearCount.value} 接近`)
-  return parts.join(' · ')
+  return parts.join(' · ') + (capped.value ? '+' : '')
 })
 
 const pos = ref({ x: 296, y: 92 })

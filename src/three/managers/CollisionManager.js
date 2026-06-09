@@ -1,5 +1,9 @@
 import RBush from 'rbush'
-import { Box3, BufferGeometry, Line, LineBasicMaterial, Matrix4, Vector3 } from 'three'
+import { Box3, BufferGeometry, DoubleSide, Line, LineBasicMaterial, Matrix4, MeshBasicMaterial, MeshMatcapMaterial, Vector3 } from 'three'
+
+// Cap stored interference pairs so pathologically dense scenes (e.g. thousands
+// of overlapping objects) don't blow up memory / the results list.
+const MAX_RESULTS = 4000
 
 /**
  * CollisionManager — nexis digital-twin interference detection (Problem 1).
@@ -20,8 +24,8 @@ import { Box3, BufferGeometry, Line, LineBasicMaterial, Matrix4, Vector3 } from 
  * per-mesh tinted clone in and restore the original reference on clear.
  */
 
-const INTERSECT_COLOR = 0xFF3B30 // red
-const NEAR_COLOR = 0xFFA500 // orange
+const INTERSECT_COLOR = 0xF87171 // soft red (interference)
+const NEAR_COLOR = 0xFCD34D // soft yellow (safety-gap warning)
 
 export class CollisionManager {
   /**
@@ -31,7 +35,7 @@ export class CollisionManager {
    * @param {import('three').Scene} [opts.scene]  for the closest-point overlay
    * @param {(results: Array) => void} [opts.onResults]
    */
-  constructor({ getModels, getBuildingParts, render, scene, onResults }) {
+  constructor({ getModels, getBuildingParts, render, scene, onResults, matcap }) {
     this.getModels = getModels
     // Static building parts (walls/columns) to test placed objects against.
     this.getBuildingParts = getBuildingParts || (() => [])
@@ -44,9 +48,30 @@ export class CollisionManager {
     /** per-model safety-gap overrides (uuid → cm). Absent → use global. */
     this.modelTolerances = new Map()
     this.results = []
+    /** true when the last scan hit MAX_RESULTS and stopped early */
+    this.lastCapped = false
 
     /** @type {Map<string, import('three').Material>} uuid → original material */
     this._origMaterial = new Map()
+    // Shared highlight materials (swapped in, never per-object clones). Use the
+    // matcap for the same shaded look as objects; fall back to flat if absent.
+    // Soft + semi-transparent so warnings read as a light tint, not a heavy slab.
+    // polygonOffset nudges the highlighted faces slightly forward in depth so a
+    // box's bottom face doesn't z-fight (flicker) with the coplanar floor.
+    const opts = {
+      side: DoubleSide,
+      transparent: true,
+      opacity: 0.65,
+      depthWrite: false,
+      polygonOffset: true,
+      polygonOffsetFactor: -1,
+      polygonOffsetUnits: -4,
+    }
+    const mk = color => matcap
+      ? new MeshMatcapMaterial({ color, matcap, ...opts })
+      : new MeshBasicMaterial({ color, ...opts })
+    this._redMat = mk(INTERSECT_COLOR)
+    this._orangeMat = mk(NEAR_COLOR)
     this._rafPending = false
     this._mat = new Matrix4()
 
@@ -236,6 +261,8 @@ export class CollisionManager {
     if (parts.length)
       partTree.load(pBoxes.map((b, k) => fp(b, k)))
 
+    this.lastCapped = false
+    outer:
     for (let i = 0; i < models.length; i++) {
       const b = mBoxes[i]
       const query = { minX: b.min.x - pad, minY: b.min.y - pad, maxX: b.max.x + pad, maxY: b.max.y + pad }
@@ -247,6 +274,10 @@ export class CollisionManager {
         const r = this._evaluate(models[i], models[cand.i], b, mBoxes[cand.i])
         if (r)
           results.push(r)
+        if (results.length >= MAX_RESULTS) {
+          this.lastCapped = true
+          break outer
+        }
       }
       // object vs building
       if (parts.length) {
@@ -254,6 +285,10 @@ export class CollisionManager {
           const r = this._evaluate(models[i], parts[cand.i], b, pBoxes[cand.i])
           if (r)
             results.push(r)
+          if (results.length >= MAX_RESULTS) {
+            this.lastCapped = true
+            break outer
+          }
         }
       }
     }
@@ -358,34 +393,37 @@ export class CollisionManager {
     this.render()
   }
 
-  /** Swap tinted material clones in for hit parts (models + building); restore the rest. */
+  /**
+   * Swap a SHARED highlight material in for each hit part (models + building),
+   * restore the original for the rest. No per-object clones (that allocated
+   * thousands of GPU materials in dense scenes). Uses a uuid→mesh Map so this
+   * stays O(n + hits) rather than O(hits × n).
+   */
   _applyHighlight(colorByUuid) {
-    const models = [...this.getModels(), ...this.getBuildingParts()]
+    const byUuid = new Map()
+    for (const m of this.getModels())
+      byUuid.set(m.uuid, m)
+    for (const m of this.getBuildingParts())
+      byUuid.set(m.uuid, m)
 
     // Restore parts that are no longer highlighted
     for (const [uuid, original] of [...this._origMaterial]) {
       if (colorByUuid.has(uuid))
         continue
-      const model = models.find(m => m.uuid === uuid)
-      if (model) {
-        const tinted = model.material
+      const model = byUuid.get(uuid)
+      if (model)
         model.material = original
-        if (tinted && tinted !== original)
-          tinted.dispose?.()
-      }
       this._origMaterial.delete(uuid)
     }
 
-    // Tint / re-tint highlighted models
+    // Apply the shared red/orange material to highlighted parts
     for (const [uuid, color] of colorByUuid) {
-      const model = models.find(m => m.uuid === uuid)
+      const model = byUuid.get(uuid)
       if (!model || !model.material)
         continue
-      if (!this._origMaterial.has(uuid)) {
+      if (!this._origMaterial.has(uuid))
         this._origMaterial.set(uuid, model.material)
-        model.material = model.material.clone()
-      }
-      model.material.color?.set?.(color)
+      model.material = color === INTERSECT_COLOR ? this._redMat : this._orangeMat
     }
   }
 

@@ -10,8 +10,10 @@ declare module 'vue' {
     AboutDialog: typeof import('./src/components/dialogs/AboutDialog.vue')['default']
     AddPrintersDialog: typeof import('./src/components/features/add_printers/AddPrintersDialog.vue')['default']
     AppearanceSettings: typeof import('./src/components/settings/AppearanceSettings.vue')['default']
+    Avatar: typeof import('primevue/avatar')['default']
     BuildingPanel: typeof import('./src/components/features/building/BuildingPanel.vue')['default']
     Button: typeof import('primevue/button')['default']
+    Checkbox: typeof import('primevue/checkbox')['default']
     ClippingPlane: typeof import('./src/components/features/model_control/ClippingPlane.vue')['default']
     CollisionFloatingPanel: typeof import('./src/components/features/collision/CollisionFloatingPanel.vue')['default']
     CollisionPanel: typeof import('./src/components/features/collision/CollisionPanel.vue')['default']
@@ -38,10 +40,16 @@ declare module 'vue' {
     RouterView: typeof import('vue-router')['RouterView']
     SafetyGapPanel: typeof import('./src/components/features/collision/SafetyGapPanel.vue')['default']
     ScatterPanel: typeof import('./src/components/features/objects/ScatterPanel.vue')['default']
+    Select: typeof import('primevue/select')['default']
     SelectLocale: typeof import('./src/components/features/basic_settings/SelectLocale.vue')['default']
     SettingsDialog: typeof import('./src/components/settings/SettingsDialog.vue')['default']
     Slider: typeof import('primevue/slider')['default']
     SteppedInput: typeof import('./src/components/UI/SteppedInput.vue')['default']
+    Tab: typeof import('primevue/tab')['default']
+    TabList: typeof import('primevue/tablist')['default']
+    TabPanel: typeof import('primevue/tabpanel')['default']
+    TabPanels: typeof import('primevue/tabpanels')['default']
+    Tabs: typeof import('primevue/tabs')['default']
     Toast: typeof import('primevue/toast')['default']
     ToggleSwitch: typeof import('primevue/toggleswitch')['default']
     ToolbarButton: typeof import('./src/components/UI/ToolbarButton.vue')['default']
@@ -55,5 +63,6 @@ declare module 'vue' {
   }
   export interface ComponentCustomProperties {
     Ripple: typeof import('primevue/ripple')['default']
+    Tooltip: typeof import('primevue/tooltip')['default']
   }
 }

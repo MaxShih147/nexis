@@ -15,6 +15,8 @@ export const useCollisionStore = defineStore('collision', () => {
   const tolerance = ref(0)
   /** per-model safety-gap overrides: { [uuid]: number }. Absent → use global. */
   const modelGaps = ref({})
+  /** true when the last scan hit the result cap and stopped early */
+  const capped = ref(false)
   /** whether a scan is currently running (batch) */
   const checking = ref(false)
   /** timestamp string of the last run (set by the caller) */
@@ -52,6 +54,7 @@ export const useCollisionStore = defineStore('collision', () => {
     results,
     tolerance,
     modelGaps,
+    capped,
     checking,
     lastRunAt,
     intersectCount,

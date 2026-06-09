@@ -98,7 +98,11 @@ export function createSceneCoordinator(container) {
     getBuildingParts,
     render,
     scene,
-    onResults: results => collisionStore.setResults(results),
+    matcap: meshManager.frontMatcap,
+    onResults: (results) => {
+      collisionStore.setResults(results)
+      collisionStore.capped = collisionManager.lastCapped
+    },
   })
 
   // Sync build volume for out-of-bounds visualization
@@ -695,9 +699,10 @@ export function createSceneCoordinator(container) {
   }
 
   /**
-   * Scatter `count` random boxes across the floor — simulates "system A"
-   * placing objects, and a quick way to stress collision detection. Random
-   * size + position; overlaps are intentional so interference shows up.
+   * Scatter `count` boxes across the floor — simulates "system A" placing
+   * objects, and a quick way to stress collision detection. Most objects are
+   * randomly placed; a few "clusters" are arranged tidily (same size class,
+   * grid layout, ≥50 cm spacing) to mimic organised storage areas.
    * @param {number} count
    */
   function scatterRandomObjects(count = 20) {
@@ -705,14 +710,10 @@ export function createSceneCoordinator(container) {
     const d = plane.size?.y || 300
     const halfW = w / 2
     const halfD = d / 2
+    const GAP = 50 // clear spacing kept between objects inside a tidy cluster
 
     // Skewed size distribution — small objects dominate (more realistic):
-    //   70% smallest (longest edge ≤ 40 cm)
-    //   15%          (≤ 80 cm)
-    //   10%          (≤ 130 cm)
-    //    5% largest  (≤ 200 cm)
-    // Per object pick a max-edge class, then vary each edge within [10, max] cm
-    // so boxes stay non-uniform (equipment/shelves) rather than cubes.
+    //   70% ≤ 40 cm · 15% ≤ 80 cm · 10% ≤ 130 cm · 5% ≤ 200 cm.
     const pickMaxEdge = () => {
       const r = Math.random()
       if (r < 0.70)
@@ -723,25 +724,78 @@ export function createSceneCoordinator(container) {
         return 130
       return 200
     }
+
+    // Colour-classify objects by size tier (shared materials, never per-object).
+    const palette = meshManager.classMaterials || []
+    const matFor = (maxEdge) => {
+      if (!palette.length)
+        return null
+      const idx = maxEdge <= 40 ? 0 : maxEdge <= 80 ? 1 : maxEdge <= 130 ? 2 : 3
+      return palette[idx % palette.length]
+    }
+
+    let placed = 0
+    const addBox = (bw, bh, bd, x, y, material) => {
+      const mesh = meshManager.addShape('Box', { width: bw, height: bh, depth: bd })
+      if (!mesh)
+        return
+      if (material)
+        mesh.material = material
+      meshManager.updatePosition({ x, y, z: mesh.position.z }, mesh)
+      undoManager.push(createAddModelCommand(mesh, meshManager, render))
+      placed++
+    }
+
     // Suppress per-object renders during the batch (each is a full-scene draw
     // that grows with the scene → ~O(n²)); render once at the end.
     const realRender = meshManager.render
     meshManager.render = () => {}
     undoManager.beginTransaction('Scatter objects')
     try {
-      for (let i = 0; i < count; i++) {
+      // ── 2–3 corners arranged tidily: ~20% of objects each, one size class
+      //    per corner (sorted by size), neat grid growing inward, ≥GAP apart ──
+      if (count >= 15) {
+        const corners = [[-1, -1], [1, -1], [-1, 1], [1, 1]]
+        for (let i = corners.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1))
+          ;[corners[i], corners[j]] = [corners[j], corners[i]]
+        }
+        const numCorners = Math.random() < 0.5 ? 2 : 3
+        const cornerSizes = [40, 80, 130] // small / medium / large per corner
+        for (let c = 0; c < numCorners && placed < count; c++) {
+          const [sx, sy] = corners[c]
+          const maxEdge = cornerSizes[c % cornerSizes.length]
+          const cell = maxEdge + GAP // centre spacing → ≥GAP clear gap (objects ≤ maxEdge)
+          const target = Math.round(count * 0.2)
+          const maxCols = Math.max(1, Math.floor((w - 2 * GAP) / cell))
+          const maxRows = Math.max(1, Math.floor((d - 2 * GAP) / cell))
+          const cols = Math.min(Math.ceil(Math.sqrt(target)), maxCols)
+          const rows = Math.min(Math.ceil(target / cols), maxRows)
+          let k = 0
+          for (let r = 0; r < rows && placed < count && k < target; r++) {
+            for (let col = 0; col < cols && placed < count && k < target; col++) {
+              // similar sizes within the class so the grid looks uniform
+              const e = () => maxEdge * 0.6 + Math.random() * maxEdge * 0.4
+              // anchor the corner-most cell near the corner, grow inward
+              const x = sx * (halfW - GAP - cell / 2 - col * cell)
+              const y = sy * (halfD - GAP - cell / 2 - r * cell)
+              addBox(e(), e(), e(), x, y, matFor(maxEdge))
+              k++
+            }
+          }
+        }
+      }
+
+      // ── The rest: random placement (skewed sizes), overlaps intentional ──
+      while (placed < count) {
         const maxEdge = pickMaxEdge()
         const edge = () => 10 + Math.random() * (maxEdge - 10)
-        const width = edge()
-        const height = edge()
-        const depth = edge()
-        const mesh = meshManager.addShape('Box', { width, height, depth })
-        if (!mesh)
-          continue
-        const x = (Math.random() * 2 - 1) * Math.max(0, halfW - width / 2)
-        const y = (Math.random() * 2 - 1) * Math.max(0, halfD - height / 2)
-        meshManager.updatePosition({ x, y, z: mesh.position.z }, mesh)
-        undoManager.push(createAddModelCommand(mesh, meshManager, render))
+        const bw = edge()
+        const bh = edge()
+        const bd = edge()
+        const x = (Math.random() * 2 - 1) * Math.max(0, halfW - bw / 2)
+        const y = (Math.random() * 2 - 1) * Math.max(0, halfD - bh / 2)
+        addBox(bw, bh, bd, x, y, matFor(maxEdge))
       }
     }
     finally {

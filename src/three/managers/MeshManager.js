@@ -165,9 +165,16 @@ export class MeshManager {
     const frontMatcap = new TextureLoader().load(FRONT_MATCAP_URL)
     this.frontMaterial = new MeshMatcapMaterial({
       color: 0xFFFFFF,
-      side: FrontSide,
+      side: DoubleSide,
       matcap: frontMatcap,
     })
+
+    // Shared palette for colour-classifying objects (blue/purple/cyan family —
+    // red/yellow are reserved for collision/warning, green for the building).
+    // Reuse the matcap for shading; these are SHARED (never per-object clones).
+    this.frontMatcap = frontMatcap
+    this.classMaterials = [0x60A5FA, 0x818CF8, 0xA78BFA, 0x22D3EE, 0x38BDF8, 0x2DD4BF]
+      .map(color => new MeshMatcapMaterial({ color, side: DoubleSide, matcap: frontMatcap }))
 
     this.wireframeMaterial = new MeshPhysicalMaterial({
       color: 0xDDDDDD,

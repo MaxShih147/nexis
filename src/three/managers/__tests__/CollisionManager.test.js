@@ -194,4 +194,26 @@ describe('collisionManager (Problem 1, single floor)', () => {
     expect(results[0].status).toBe('near')
     expect(results[0].bName).toBe('牆')
   })
+
+  // ── Scale: rbush broad phase isolates clusters among many objects ──
+
+  it('finds only the overlapping cluster among 1000 sparse objects', () => {
+    const models = []
+    let id = 0
+    // 990 sparse boxes on a wide grid (spacing 100 ≫ size 10 → no overlaps)
+    for (let i = 0; i < 30; i++) {
+      for (let j = 0; j < 33; j++)
+        models.push(makeBox(`s${id++}`, i * 100, j * 100, 0, 10))
+    }
+    // 10 boxes clustered far away, each 2 apart → overlapping chain
+    for (let k = 0; k < 10; k++)
+      models.push(makeBox(`c${k}`, 5000 + k * 2, 5000, 0, 10))
+
+    const cm = manager(models)
+    const results = cm.checkAll()
+
+    expect(results.length).toBeGreaterThan(0)
+    // every reported pair is within the cluster — sparse grid produces nothing
+    expect(results.every(r => r.aName.startsWith('c') && r.bName.startsWith('c'))).toBe(true)
+  })
 })

@@ -488,7 +488,7 @@ export class MeshManager {
    * @param {Object3D} model The model to register
    */
   _registerModel(model) {
-    this.models = [...this.models, model]
+    this.models.push(model)
     this.modelStore.addModel(model, model.name)
     this.dragControl.objects.push(model)
     this.SelectionManager.addInteractiveObject(model)

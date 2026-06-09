@@ -45,10 +45,16 @@ export async function loadModelByFileType(file, frontMaterial, backMaterial) {
  * @returns {Mesh} The processed mesh object
  */
 export function processMesh(geometry, name, frontMaterial, backMaterial) {
-  // Use provided materials or create defaults if not provided
+  // Use provided materials or create defaults if not provided.
+  // NOTE: only load the matcap texture when actually building a default back
+  // material — doing it unconditionally fired a CDN image fetch per mesh, which
+  // made adding many objects extremely slow.
   const front = frontMaterial || new MeshPhysicalMaterial({ color: 0xFFFFFF, side: FrontSide, wireframe: false })
-  const backMatcap = new TextureLoader().load('https://cdn.jsdelivr.net/gh/nidorx/matcaps@master/1024/626262_9E9E9E_848484_262626.png')
-  const back = backMaterial || new MeshMatcapMaterial({ color: 0xB070B8, side: BackSide, matcap: backMatcap })
+  const back = backMaterial || new MeshMatcapMaterial({
+    color: 0xB070B8,
+    side: BackSide,
+    matcap: new TextureLoader().load('https://cdn.jsdelivr.net/gh/nidorx/matcaps@master/1024/626262_9E9E9E_848484_262626.png'),
+  })
 
   const mesh = new Mesh(geometry, front)
   const backMesh = new Mesh(geometry, back)

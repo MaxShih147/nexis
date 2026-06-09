@@ -706,16 +706,30 @@ export function createSceneCoordinator(container) {
     const halfW = w / 2
     const halfD = d / 2
 
+    // Each edge 10..200 cm (non-uniform → boxes like equipment/shelves),
+    // so the longest dimension always stays within [10, 200] cm.
+    const rnd = () => 10 + Math.random() * 190
+    // Suppress per-object renders during the batch (each is a full-scene draw
+    // that grows with the scene → ~O(n²)); render once at the end.
+    const realRender = meshManager.render
+    meshManager.render = () => {}
     undoManager.beginTransaction('Scatter objects')
-    for (let i = 0; i < count; i++) {
-      const size = 50 + Math.random() * 150 // 50..200 cm
-      const mesh = meshManager.addShape('Box', { width: size, height: size, depth: size })
-      if (!mesh)
-        continue
-      const x = (Math.random() * 2 - 1) * Math.max(0, halfW - size / 2)
-      const y = (Math.random() * 2 - 1) * Math.max(0, halfD - size / 2)
-      meshManager.updatePosition({ x, y, z: mesh.position.z }, mesh)
-      undoManager.push(createAddModelCommand(mesh, meshManager, render))
+    try {
+      for (let i = 0; i < count; i++) {
+        const width = rnd()
+        const height = rnd()
+        const depth = rnd()
+        const mesh = meshManager.addShape('Box', { width, height, depth })
+        if (!mesh)
+          continue
+        const x = (Math.random() * 2 - 1) * Math.max(0, halfW - width / 2)
+        const y = (Math.random() * 2 - 1) * Math.max(0, halfD - height / 2)
+        meshManager.updatePosition({ x, y, z: mesh.position.z }, mesh)
+        undoManager.push(createAddModelCommand(mesh, meshManager, render))
+      }
+    }
+    finally {
+      meshManager.render = realRender
     }
     undoManager.commitTransaction()
     collisionManager.requestRealtimeCheck(null)

@@ -1,3 +1,4 @@
+import RBush from 'rbush'
 import { Box3, BufferGeometry, Line, LineBasicMaterial, Matrix4, Vector3 } from 'three'
 
 /**
@@ -201,28 +202,59 @@ export class CollisionManager {
     return null
   }
 
+  /** Largest safety gap in play — broadens the broad-phase query conservatively. */
+  _maxTolerance() {
+    let m = this.tolerance
+    for (const v of this.modelTolerances.values())
+      m = Math.max(m, v)
+    return m
+  }
+
   /**
    * Full scan: object-vs-object (every model pair) plus object-vs-building
    * (every model against each static wall/column). Building parts are never
    * tested against each other.
+   *
+   * Broad phase uses an R-tree (rbush) over XY footprints so we only narrow-test
+   * spatially-near pairs — near-linear instead of O(n²). The exact AABB + BVH
+   * test still runs per candidate in _evaluate, so results are unchanged.
    */
   checkAll() {
     const models = this.getModels().filter(m => m.geometry)
     const parts = this.getBuildingParts().filter(m => m.geometry)
     const mBoxes = models.map(m => this._worldBox(m))
     const pBoxes = parts.map(m => this._worldBox(m))
+    const pad = this._maxTolerance()
     const results = []
 
+    const fp = (box, i) => ({ minX: box.min.x, minY: box.min.y, maxX: box.max.x, maxY: box.max.y, i })
+
+    const modelTree = new RBush()
+    modelTree.load(mBoxes.map((b, i) => fp(b, i)))
+
+    const partTree = new RBush()
+    if (parts.length)
+      partTree.load(pBoxes.map((b, k) => fp(b, k)))
+
     for (let i = 0; i < models.length; i++) {
-      for (let j = i + 1; j < models.length; j++) {
-        const r = this._evaluate(models[i], models[j], mBoxes[i], mBoxes[j])
+      const b = mBoxes[i]
+      const query = { minX: b.min.x - pad, minY: b.min.y - pad, maxX: b.max.x + pad, maxY: b.max.y + pad }
+
+      // object vs object — only candidates with a higher index (dedupe pairs)
+      for (const cand of modelTree.search(query)) {
+        if (cand.i <= i)
+          continue
+        const r = this._evaluate(models[i], models[cand.i], b, mBoxes[cand.i])
         if (r)
           results.push(r)
       }
-      for (let k = 0; k < parts.length; k++) {
-        const r = this._evaluate(models[i], parts[k], mBoxes[i], pBoxes[k])
-        if (r)
-          results.push(r)
+      // object vs building
+      if (parts.length) {
+        for (const cand of partTree.search(query)) {
+          const r = this._evaluate(models[i], parts[cand.i], b, pBoxes[cand.i])
+          if (r)
+            results.push(r)
+        }
       }
     }
 

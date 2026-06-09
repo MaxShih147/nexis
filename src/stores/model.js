@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { computed, reactive, ref } from 'vue'
+import { computed, markRaw, reactive, ref } from 'vue'
 
 const DEFAULT_LOADING_MESSAGES = ['Loading...']
 
@@ -50,18 +50,27 @@ export const useModelStore = defineStore('model', () => {
    */
   const findModel = uuid => models.find(model => model.uuid === uuid)
 
+  // Non-reactive index of present uuids for O(1) duplicate checks on add.
+  const _uuidSet = new Set()
+
   /**
    * Add a model to the store
    * @param {object} model - The 3D model to add
    * @param {string} name - The name of the model
    */
   const addModel = (model, name = 'Untitled') => {
-    // Don't add duplicates
-    if (findModel(model.uuid))
+    // O(1) duplicate check — a linear findModel() here was O(n) per add (and on
+    // a reactive array), making bulk placement of N objects O(n²).
+    if (_uuidSet.has(model.uuid))
       return
 
-    // Add model with immutable pattern
-    models.push({ ...model, name })
+    _uuidSet.add(model.uuid)
+    // Store the real mesh via markRaw — spreading `{ ...model }` into the
+    // reactive array made Vue deep-proxy the Mesh's object graph (parent →
+    // scene → every child), which was O(scene) per add → O(n²) for bulk placement.
+    if (name != null && model.name !== name)
+      model.name = name
+    models.push(markRaw(model))
   }
 
   /**
@@ -148,6 +157,7 @@ export const useModelStore = defineStore('model', () => {
 
     // Remove the model from the array
     models.splice(modelIndex, 1)
+    _uuidSet.delete(uuid)
     return true
   }
 
@@ -166,6 +176,7 @@ export const useModelStore = defineStore('model', () => {
    */
   const clearAll = () => {
     models.splice(0, models.length)
+    _uuidSet.clear()
     deselectModel()
     selectedUuids.value = []
   }

@@ -17,7 +17,7 @@ function updateTolerance(value) {
 <template>
   <div class="flex flex-col gap-2 px-2 py-3">
     <span class="font-medium uppercase tracking-wide text-zinc-400 text-xs">安全間隙</span>
-    <div class="flex items-center justify-between gap-2">
+    <div class="flex flex-col gap-1">
       <span class="text-xs text-zinc-400">全域 ε</span>
       <InputNumber
         :model-value="tolerance"
@@ -28,8 +28,8 @@ function updateTolerance(value) {
         button-layout="horizontal"
         suffix=" cm"
         size="small"
-        class="w-32"
-        :input-style="{ width: '3.5rem', fontSize: '0.75rem' }"
+        fluid
+        :input-style="{ fontSize: '0.75rem' }"
         @update:model-value="updateTolerance"
       />
     </div>

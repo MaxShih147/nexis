@@ -52,11 +52,13 @@ export const useModelStore = defineStore('model', () => {
 
   // Non-reactive index of present uuids for O(1) duplicate checks on add.
   const _uuidSet = new Set()
+  // base name → models sharing it, for disambiguating duplicates (物件-1#1, #2…)
+  const _nameGroups = new Map()
 
   /**
    * Add a model to the store
    * @param {object} model - The 3D model to add
-   * @param {string} name - The name of the model
+   * @param {string} name - The base display name
    */
   const addModel = (model, name = 'Untitled') => {
     // O(1) duplicate check — a linear findModel() here was O(n) per add (and on
@@ -65,11 +67,30 @@ export const useModelStore = defineStore('model', () => {
       return
 
     _uuidSet.add(model.uuid)
+
+    // Disambiguate duplicate base names: first stays "物件-1"; once a second
+    // arrives, both read as "物件-1#1", "物件-1#2", … so they're identifiable.
+    const base = name ?? 'Untitled'
+    let group = _nameGroups.get(base)
+    if (!group) {
+      group = []
+      _nameGroups.set(base, group)
+    }
+    group.push(model)
+    if (group.length === 1) {
+      model.name = base
+    }
+    else {
+      if (group.length === 2)
+        group[0].name = `${base}#1` // retro-tag the first duplicate
+      model.name = `${base}#${group.length}`
+    }
+    model.userData = model.userData || {}
+    model.userData._baseName = base
+
     // Store the real mesh via markRaw — spreading `{ ...model }` into the
     // reactive array made Vue deep-proxy the Mesh's object graph (parent →
     // scene → every child), which was O(scene) per add → O(n²) for bulk placement.
-    if (name != null && model.name !== name)
-      model.name = name
     models.push(markRaw(model))
   }
 
@@ -155,7 +176,16 @@ export const useModelStore = defineStore('model', () => {
       selectedUuids.value = selectedUuids.value.filter(u => u !== uuid)
     }
 
-    // Remove the model from the array
+    // Remove the model from the array + name bookkeeping
+    const removed = models[modelIndex]
+    const base = removed?.userData?._baseName
+    if (base && _nameGroups.has(base)) {
+      const group = _nameGroups.get(base).filter(m => m.uuid !== uuid)
+      if (group.length)
+        _nameGroups.set(base, group)
+      else
+        _nameGroups.delete(base)
+    }
     models.splice(modelIndex, 1)
     _uuidSet.delete(uuid)
     return true
@@ -177,6 +207,7 @@ export const useModelStore = defineStore('model', () => {
   const clearAll = () => {
     models.splice(0, models.length)
     _uuidSet.clear()
+    _nameGroups.clear()
     deselectModel()
     selectedUuids.value = []
   }

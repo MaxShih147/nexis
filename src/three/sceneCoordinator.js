@@ -736,7 +736,9 @@ export function createSceneCoordinator(container) {
 
     let placed = 0
     const addBox = (bw, bh, bd, x, y, material) => {
-      const mesh = meshManager.addShape('Box', { width: bw, height: bh, depth: bd })
+      // Name objects 物件-1, 物件-2, … per batch; the store disambiguates
+      // duplicates across batches as 物件-1#1, 物件-1#2, …
+      const mesh = meshManager.addShape('Box', { width: bw, height: bh, depth: bd }, `物件-${placed + 1}`)
       if (!mesh)
         return
       if (material)

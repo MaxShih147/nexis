@@ -102,8 +102,8 @@ onBeforeUnmount(() => {
       <!-- nexis: project menu (hamburger) temporarily hidden -->
     </div>
     <!-- end of panel header -->
-    <!-- model list -->
-    <div class="h-full px-1">
+    <!-- model list (scrolls when it overflows) -->
+    <div class="flex-1 min-h-0 overflow-y-auto px-1">
       <ModelList v-if="modelStore.models.length > 0" />
       <div v-else class="flex flex-col items-center justify-center h-full gap-2">
         <UploadBtn label="新增物件" />

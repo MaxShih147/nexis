@@ -767,13 +767,15 @@ export class MeshManager {
    * @param {object} params Parameters for the shape
    * @returns {Object3D|null} The created mesh or null if invalid
    */
-  addShape(name, params) {
+  addShape(name, params, displayName) {
     const geometry = this._createGeometry(name, params)
 
     if (!geometry)
       return null
 
     const mesh = processMesh(geometry, name, this.frontMaterial, this.backMaterial)
+    if (displayName)
+      mesh.name = displayName
 
     // Attach parameters to mesh for UI reference using immutable approach
     mesh.userData = {

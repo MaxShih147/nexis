@@ -13,8 +13,7 @@ const props = defineProps({
   },
 })
 defineEmits(['update:visible'])
-const strokeOuter = PRIMARY_CSS.DEFAULT
-const strokeInner = PRIMARY_CSS.LIGHT
+const squareColor = PRIMARY_CSS.DEFAULT
 
 const currentTextIndex = ref(0)
 const fadeKey = ref(0)
@@ -62,24 +61,16 @@ watch(() => props.messages, () => {
     @update:visible="$emit('update:visible', $event)"
   >
     <div class="flex flex-col items-center gap-6 py-8">
-      <svg class="tooth-svg" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <path
-          class="tooth-outer"
-          :style="{ stroke: strokeOuter }"
-          pathLength="1"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          d="M12 4.321a5.444 5.444 0 0 0-9 4.123c0 3.633.02 7.042 2.089 10.283A3 3 0 0 0 11 18c0-.172.022-.264.038-.305c.01-.028.017-.033.023-.038l.001-.001c.041-.033.255-.156.938-.156s.897.123.938.156c.007.006.014.01.024.039A.9.9 0 0 1 13 18a3 3 0 0 0 5.911.727C20.98 15.487 21 12.079 21 8.447m0 0v-.002a5.445 5.445 0 0 0-9-4.124"
-        />
-        <path
-          class="tooth-inner"
-          :style="{ stroke: strokeInner }"
-          pathLength="1"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          d="M8.444 5A3.444 3.444 0 0 0 5 8.444c0 3.758.066 6.622 1.863 9.342l.116.176l.035.208A1 1 0 0 0 9 18c0-.66.17-1.391.813-1.906c.584-.467 1.37-.594 2.187-.594s1.603.127 2.187.594C14.83 16.61 15 17.34 15 18a1 1 0 0 0 1.986.17l.035-.208l.116-.176C18.934 15.066 19 12.204 19 8.447v-.003a3.445 3.445 0 0 0-5.727-2.58l1.257 1.887a1 1 0 1 1-1.664 1.109l-1.504-2.257l-.035-.056l-.127-.169A3.44 3.44 0 0 0 8.445 5"
-        />
-      </svg>
+      <!-- Square-loop loader (Uiverse.io by ZacharyCrespin), tinted to the brand teal -->
+      <div class="loader" :style="{ '--sq-color': squareColor }">
+        <div class="loader-square" />
+        <div class="loader-square" />
+        <div class="loader-square" />
+        <div class="loader-square" />
+        <div class="loader-square" />
+        <div class="loader-square" />
+        <div class="loader-square" />
+      </div>
 
       <Transition name="fade" mode="out-in">
         <p :key="fadeKey" class="text-sm font-medium tracking-widest text-zinc-400 uppercase">
@@ -91,32 +82,52 @@ watch(() => props.messages, () => {
 </template>
 
 <style scoped>
-.tooth-svg {
-  width: 88px;
-  height: 88px;
+/* Square-loop loader — Uiverse.io by ZacharyCrespin */
+.loader {
+  position: relative;
+  width: 96px;
+  height: 96px;
+  transform: rotate(45deg);
 }
 
-.tooth-outer {
-  stroke-width: 1;
-  stroke-dasharray: 1;
-  stroke-dashoffset: 1;
-  animation: draw-path 2.8s ease-in-out infinite;
+.loader-square {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 28px;
+  height: 28px;
+  margin: 2px;
+  border-radius: 2px;
+  background: var(--sq-color, #14b8a6);
+  animation: square-animation 10s ease-in-out infinite both;
 }
 
-.tooth-inner {
-  stroke-width: 0.7;
-  stroke-dasharray: 1;
-  stroke-dashoffset: 1;
-  animation: draw-path 2.8s ease-in-out infinite;
-  animation-delay: 0.6s;
-}
+.loader-square:nth-of-type(1) { animation-delay: -1.4285714286s; }
+.loader-square:nth-of-type(2) { animation-delay: -2.8571428571s; }
+.loader-square:nth-of-type(3) { animation-delay: -4.2857142857s; }
+.loader-square:nth-of-type(4) { animation-delay: -5.7142857143s; }
+.loader-square:nth-of-type(5) { animation-delay: -7.1428571429s; }
+.loader-square:nth-of-type(6) { animation-delay: -8.5714285714s; }
+.loader-square:nth-of-type(7) { animation-delay: -10s; }
 
-@keyframes draw-path {
-  0%   { stroke-dashoffset: 1; opacity: 1; }
-  50%  { stroke-dashoffset: 0; opacity: 1; }
-  75%  { stroke-dashoffset: 0; opacity: 0.1; }
-  99%  { stroke-dashoffset: 0; opacity: 0.1; }
-  100% { stroke-dashoffset: 1; opacity: 0; }
+@keyframes square-animation {
+  0%    { left: 0;    top: 0; }
+  10.5% { left: 0;    top: 0; }
+  12.5% { left: 32px; top: 0; }
+  23%   { left: 32px; top: 0; }
+  25%   { left: 64px; top: 0; }
+  35.5% { left: 64px; top: 0; }
+  37.5% { left: 64px; top: 32px; }
+  48%   { left: 64px; top: 32px; }
+  50%   { left: 32px; top: 32px; }
+  60.5% { left: 32px; top: 32px; }
+  62.5% { left: 32px; top: 64px; }
+  73%   { left: 32px; top: 64px; }
+  75%   { left: 0;    top: 64px; }
+  85.5% { left: 0;    top: 64px; }
+  87.5% { left: 0;    top: 32px; }
+  98%   { left: 0;    top: 32px; }
+  100%  { left: 0;    top: 0; }
 }
 
 .fade-enter-active,
